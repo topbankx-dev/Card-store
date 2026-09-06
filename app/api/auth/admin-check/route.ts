@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { auth } from '@/auth'
 
+// Force Node.js runtime for Prisma adapter compatibility
+export const runtime = 'nodejs'
+
 export async function GET() {
   const session = await auth()
 
