@@ -1,0 +1,254 @@
+// Prisma schema for the TCG store MVP
+// Documentation: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User model: customers, players, and administrators
+model User {
+  id             String    @id @default(cuid())
+  name           String
+  email          String    @unique
+  email_verified DateTime?
+  password_hash  String?
+  image          String?
+  role           Role      @default(PLAYER)
+  loyalty_points Int       @default(0)
+  created_at     DateTime  @default(now())
+  updated_at     DateTime  @updatedAt
+
+  accounts    Account[]
+  sessions    Session[]
+  orders      Order[]
+  event_registrations EventRegistration[]
+
+  @@index([email])
+}
+
+// NextAuth Account model (for OAuth providers)
+model Account {
+  id                String  @id @default(cuid())
+  user_id          String
+  type              String
+  provider         String
+  provider_account_id String
+  refresh_token    String? @db.Text
+  access_token     String? @db.Text
+  expires_at      Int?
+  token_type      String?
+  scope           String?
+  id_token        String? @db.Text
+  session_state   String?
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([provider, provider_account_id])
+  @@index([user_id])
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  session_token String   @unique
+  user_id      String
+  expires      DateTime
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+}
+
+// NextAuth VerificationToken model
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+enum Role {
+  PLAYER
+  ADMIN
+}
+
+// Product model: TCG cards, sealed products, and accessories
+model Product {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  game         Game
+  set          String?
+  rarity       Rarity?
+  condition    Condition @default(NEAR_MINT)
+  price        Decimal  @db.Decimal(10, 2)
+  stock_quantity Int    @default(0)
+  image_url    String?
+  description  String?
+  is_featured  Boolean  @default(false)
+  is_sealed    Boolean  @default(false)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  order_items OrderItem[]
+
+  @@index([game])
+  @@index([set])
+  @@index([rarity])
+  @@index([condition])
+  @@index([is_featured])
+  @@index([is_sealed])
+}
+
+enum Game {
+  YGO
+  POKEMON
+  MTG
+  ONE_PIECE
+  NARUTO
+  DIGIMON
+  ACCESSORIES
+  OTHER
+}
+
+enum Rarity {
+  COMMON
+  UNCOMMON
+  RARE
+  SUPER_RARE
+  ULTRA_RARE
+  SECRET_RARE
+  MYTHIC
+  PROMO
+}
+
+enum Condition {
+  MINT
+  NEAR_MINT
+  EXCELLENT
+  GOOD
+  PLAYED
+  DAMAGED
+  SEALED
+}
+
+// Order model: customer purchases
+model Order {
+  id              String   @id @default(cuid())
+  user_id         String?
+  total_amount    Decimal  @db.Decimal(10, 2)
+  status          OrderStatus @default(PENDING)
+  fulfillment_type FulfillmentType
+  shipping_address String?
+  customer_name   String?
+  customer_email  String?
+  customer_phone  String?
+  notes           String?
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  user  User?      @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  items OrderItem[]
+
+  @@index([user_id])
+  @@index([status])
+  @@index([created_at])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PROCESSING
+  READY_FOR_PICKUP
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  REFUNDED
+}
+
+enum FulfillmentType {
+  IN_STORE_PICKUP
+  ISLAND_WIDE_DELIVERY
+}
+
+// OrderItem model: line items in an order (with price snapshot)
+model OrderItem {
+  id                String  @id @default(cuid())
+  order_id          String
+  product_id        String
+  quantity          Int
+  price_at_purchase Decimal @db.Decimal(10, 2)
+  created_at        DateTime @default(now())
+
+  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id])
+
+  @@index([order_id])
+  @@index([product_id])
+}
+
+// Event model: tournaments, game nights, and special events
+model Event {
+  id               String   @id @default(cuid())
+  name             String
+  slug             String   @unique
+  game             Game
+  description      String?
+  event_date       DateTime
+  end_date         DateTime?
+  entry_fee        Decimal  @db.Decimal(10, 2)
+  max_capacity     Int
+  current_registered Int    @default(0)
+  location         String   @default("In-Store")
+  status           EventStatus @default(UPCOMING)
+  image_url        String?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
+
+  registrations EventRegistration[]
+
+  @@index([event_date])
+  @@index([status])
+  @@index([game])
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+// EventRegistration model: tracks which users registered for which events
+model EventRegistration {
+  id             String   @id @default(cuid())
+  event_id       String
+  user_id        String?
+  guest_name     String?
+  guest_email    String?
+  payment_status PaymentStatus @default(PENDING)
+  registered_at  DateTime @default(now())
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  event Event @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user  User?  @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([event_id])
+  @@index([user_id])
+  @@index([payment_status])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
