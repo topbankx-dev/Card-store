@@ -1,5 +1,6 @@
-import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
+import { getToken } from 'next-auth/jwt'
 
 // Routes that require authentication
 const protectedRoutes = ['/account', '/checkout', '/orders']
@@ -10,9 +11,16 @@ const adminRoutes = ['/admin']
 // Routes that are only for unauthenticated users (login, register)
 const authRoutes = ['/login', '/register']
 
-export default auth((req) => {
+export async function middleware(req: NextRequest) {
   const { nextUrl } = req
-  const isLoggedIn = !!req.auth
+
+  // Use getToken instead of auth() to avoid importing Prisma/pg into Edge Runtime
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+  })
+
+  const isLoggedIn = !!token
   const isAuthRoute = authRoutes.some((route) => nextUrl.pathname.startsWith(route))
   const isProtectedRoute = protectedRoutes.some((route) => nextUrl.pathname.startsWith(route))
   const isAdminRoute = adminRoutes.some((route) => nextUrl.pathname.startsWith(route))
@@ -36,7 +44,7 @@ export default auth((req) => {
   }
 
   return NextResponse.next()
-})
+}
 
 // Configure which routes the middleware runs on
 export const config = {
@@ -52,3 +60,4 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|public|api/).*)',
   ],
 }
+
