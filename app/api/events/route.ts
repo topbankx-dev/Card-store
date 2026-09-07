@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Use service-role client for admin operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // Validation schema for event filtering
 const eventFilterSchema = z.object({
@@ -98,7 +101,7 @@ export async function POST(request: NextRequest) {
 
     const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 
-    const { data: event, error } = await supabase
+    const { data: event, error } = await adminDb
       .from('Event')
       .insert({
         name: body.name,

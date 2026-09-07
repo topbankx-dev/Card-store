@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Use service-role client for admin operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // Validation schema for product filtering
 const productFilterSchema = z.object({
@@ -120,7 +123,7 @@ export async function POST(request: NextRequest) {
 
     const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 
-    const { data: product, error } = await supabase
+    const { data: product, error } = await adminDb
       .from('Product')
       .insert({
         name: body.name,

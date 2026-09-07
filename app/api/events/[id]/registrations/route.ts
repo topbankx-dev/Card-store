@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Use service-role client for write operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // Validation schema for event registration
 const registerSchema = z.object({
@@ -135,7 +138,7 @@ export async function POST(
     }
 
     // Create registration and update event count
-    const { data: newRegistration, error: regError } = await supabase
+    const { data: newRegistration, error: regError } = await adminDb
       .from('EventRegistration')
       .insert({
         eventId: id,
@@ -156,7 +159,7 @@ export async function POST(
     }
 
     // Update event registration count
-    const { error: updateError } = await supabase
+    const { error: updateError } = await adminDb
       .from('Event')
       .update({
         current_registered: event.current_registered + 1,
