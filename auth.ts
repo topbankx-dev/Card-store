@@ -1,8 +1,7 @@
 import NextAuth from 'next-auth'
-import { SupabaseAdapter } from '@auth/supabase-adapter'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { createServerClient, supabaseConfig } from '@/lib/supabase'
+import { createServerClient } from '@/lib/supabase'
 import { authConfig } from './auth.config'
 
 // Service-role client for auth (bypasses RLS to read password hashes securely)
@@ -28,10 +27,6 @@ declare module 'next-auth' {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
-  adapter: SupabaseAdapter({
-    url: supabaseConfig.url!,
-    secret: supabaseConfig.serviceKey!,
-  }),
   session: { strategy: 'jwt' },
   providers: [
     Credentials({
