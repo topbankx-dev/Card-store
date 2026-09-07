@@ -38,3 +38,6 @@ next-env.d.ts
 .alchemy/
 # Supabase CLI token - DO NOT COMMIT
 .supa_token
+# Supabase CLI temp files
+supabase/.temp/
+
