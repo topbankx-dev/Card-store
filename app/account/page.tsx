@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartSidebar } from '@/components/cart-sidebar'
-import { User, Mail, Award, Calendar, ShoppingBag, LogOut, Settings, Shield } from 'lucide-react'
+import { User, Mail, Award, Calendar, ShoppingBag, LogOut, Shield } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 
 export default function AccountPage() {
@@ -20,7 +20,11 @@ export default function AccountPage() {
     if (status === 'unauthenticated') {
       router.push('/login?callbackUrl=/account')
     }
-  }, [status, router])
+    // Redirect admins to admin settings
+    if (status === 'authenticated' && session?.user?.role === 'ADMIN') {
+      router.push('/admin/settings')
+    }
+  }, [status, session, router])
 
   if (status === 'loading') {
     return (
@@ -63,28 +67,26 @@ export default function AccountPage() {
             {/* Profile Card */}
             <Card className="lg:col-span-2">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
-                      <User className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <CardTitle>{user.name || 'Player'}</CardTitle>
-                      <CardDescription className="flex items-center gap-1">
-                        {user.role === 'ADMIN' && (
-                          <>
-                            <Shield className="w-3 h-3 text-purple-500" />
-                            Admin
-                          </>
-                        )}
-                        {user.role === 'PLAYER' && (
-                          <>
-                            <Award className="w-3 h-3 text-yellow-500" />
-                            Player
-                          </>
-                        )}
-                      </CardDescription>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                    <User className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle>{user.name || 'Player'}</CardTitle>
+                    <CardDescription className="flex items-center gap-1">
+                      {user.role === 'ADMIN' && (
+                        <>
+                          <Shield className="w-3 h-3 text-purple-500" />
+                          Admin
+                        </>
+                      )}
+                      {user.role === 'PLAYER' && (
+                        <>
+                          <Award className="w-3 h-3 text-yellow-500" />
+                          Player
+                        </>
+                      )}
+                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>
@@ -126,32 +128,17 @@ export default function AccountPage() {
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href="/orders">
+                    <Link href="/shop">
                       <ShoppingBag className="w-4 h-4 mr-2" />
-                      My Orders
+                      Browse Shop
                     </Link>
                   </Button>
                   <Button variant="outline" className="w-full justify-start" asChild>
                     <Link href="/events">
                       <Calendar className="w-4 h-4 mr-2" />
-                      Event Registration
+                      Upcoming Events
                     </Link>
                   </Button>
-                  <Button variant="outline" className="w-full justify-start" asChild>
-                    <Link href="/account/settings">
-                      <Settings className="w-4 h-4 mr-2" />
-                      Account Settings
-                    </Link>
-                  </Button>
-
-                  {user.role === 'ADMIN' && (
-                    <Button className="w-full justify-start mt-4" asChild>
-                      <Link href="/admin">
-                        <Shield className="w-4 h-4 mr-2" />
-                        Admin Dashboard
-                      </Link>
-                    </Button>
-                  )}
                 </CardContent>
               </Card>
 
@@ -172,24 +159,6 @@ export default function AccountPage() {
               </Card>
             </div>
           </div>
-
-          {/* Recent Activity */}
-          <Card className="mt-6">
-            <CardHeader>
-              <CardTitle>Recent Orders</CardTitle>
-              <CardDescription>Your recent purchase history</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-8 text-muted-foreground">
-                <ShoppingBag className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                <p>No orders yet</p>
-                <p className="text-sm">Start shopping to see your orders here</p>
-                <Button className="mt-4" asChild>
-                  <Link href="/shop">Browse Shop</Link>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </div>
       </main>
 

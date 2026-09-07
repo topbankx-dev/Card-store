@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,8 +19,13 @@ import {
   DollarSign,
   Save,
   CheckCircle2,
+  User,
+  Award,
+  Key,
+  Loader2,
 } from 'lucide-react'
 import { AdminInvites } from '@/components/admin/invites/AdminInvites'
+import { formatDate } from '@/lib/utils'
 
 // Sample settings
 const sampleSettings = {
@@ -51,9 +57,20 @@ const sampleSettings = {
 }
 
 export default function SettingsPage() {
+  const { data: session } = useSession()
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [settings, setSettings] = useState(sampleSettings)
+
+  // Password change state
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const handleSave = async () => {
     setSaving(true)
@@ -64,6 +81,48 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 3000)
   }
 
+  const handlePasswordChange = async () => {
+    setPasswordError('')
+    setPasswordSuccess(false)
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setPasswordError('Passwords do not match')
+      return
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters')
+      return
+    }
+
+    setChangingPassword(true)
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.newPassword,
+        }),
+      })
+
+      if (!res.ok) {
+        const data = await res.json()
+        setPasswordError(data.error || 'Failed to change password')
+        return
+      }
+
+      setPasswordSuccess(true)
+      setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+    } catch {
+      setPasswordError('Something went wrong')
+    } finally {
+      setChangingPassword(false)
+    }
+  }
+
+  const user = session?.user
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -71,7 +130,7 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground">
-            Configure your store settings
+            Configure your store and account settings
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -88,29 +147,167 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="store" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs defaultValue="profile" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="profile" className="gap-2">
+            <User className="w-4 h-4" />
+            <span className="hidden sm:inline">Profile</span>
+          </TabsTrigger>
           <TabsTrigger value="store" className="gap-2">
             <Store className="w-4 h-4" />
-            Store
+            <span className="hidden sm:inline">Store</span>
           </TabsTrigger>
           <TabsTrigger value="inventory" className="gap-2">
             <Database className="w-4 h-4" />
-            Inventory
+            <span className="hidden sm:inline">Inventory</span>
           </TabsTrigger>
           <TabsTrigger value="fulfillment" className="gap-2">
             <DollarSign className="w-4 h-4" />
-            Fulfillment
+            <span className="hidden sm:inline">Fulfillment</span>
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="w-4 h-4" />
-            Notifications
+            <span className="hidden sm:inline">Notifications</span>
           </TabsTrigger>
           <TabsTrigger value="security" className="gap-2">
             <Shield className="w-4 h-4" />
-            Security
+            <span className="hidden sm:inline">Security</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Profile Settings */}
+        <TabsContent value="profile">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Admin Profile Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Award className="w-5 h-5" />
+                  Your Profile
+                </CardTitle>
+                <CardDescription>
+                  Your admin account information
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50">
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-white">
+                      {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'A'}
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-lg">{user?.name || 'Admin User'}</p>
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Shield className="w-4 h-4 text-purple-500" />
+                      <span>Administrator</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <Mail className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Email</p>
+                      <p className="font-medium">{user?.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
+                    <Award className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Role</p>
+                      <p className="font-medium">{user?.role}</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Change Password Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Key className="w-5 h-5" />
+                  Change Password
+                </CardTitle>
+                <CardDescription>
+                  Update your admin account password
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {passwordSuccess && (
+                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/50 text-green-500 text-sm">
+                    Password changed successfully!
+                  </div>
+                )}
+
+                {passwordError && (
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/50 text-destructive text-sm">
+                    {passwordError}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="currentPassword">Current Password</Label>
+                    <Input
+                      id="currentPassword"
+                      type="password"
+                      value={passwordForm.currentPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                      placeholder="Enter current password"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="newPassword">New Password</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                      placeholder="Enter new password"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Must be at least 8 characters
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                    <Input
+                      id="confirmPassword"
+                      type="password"
+                      value={passwordForm.confirmPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handlePasswordChange}
+                    disabled={changingPassword || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                    className="w-full"
+                  >
+                    {changingPassword ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Changing...
+                      </>
+                    ) : (
+                      <>
+                        <Key className="w-4 h-4 mr-2" />
+                        Change Password
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         {/* Store Settings */}
         <TabsContent value="store">
@@ -355,7 +552,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>Security Settings</CardTitle>
               <CardDescription>
-                Manage admin account security
+                Additional security options
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -365,14 +562,6 @@ export default function SettingsPage() {
                   Add an extra layer of security to your admin account
                 </p>
                 <Button variant="outline">Enable 2FA</Button>
-              </div>
-              <Separator />
-              <div className="space-y-4">
-                <h3 className="font-semibold">Change Password</h3>
-                <p className="text-sm text-muted-foreground">
-                  Update your admin account password
-                </p>
-                <Button variant="outline">Change Password</Button>
               </div>
               <Separator />
               <div className="space-y-4">
