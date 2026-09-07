@@ -121,7 +121,7 @@ export interface AnalyticsData {
   revenue: {
     total: number
     change: number
-    byDay: { date: string; amount: number }[]
+    byDay: { date: string; amount: number; orders: number }[]
   }
   orders: {
     total: number

@@ -31,6 +31,8 @@ import {
   LineChart,
   Line,
   Legend,
+  AreaChart,
+  Area,
 } from 'recharts'
 import { formatPrice } from '@/lib/utils'
 import {
@@ -186,7 +188,7 @@ export default function AnalyticsPage() {
                     axisLine={false}
                   />
                   <Tooltip
-                    formatter={(value: number) => [formatPrice(value), 'Revenue']}
+                    formatter={(value: any) => [formatPrice(value as number), 'Revenue']}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
@@ -268,7 +270,7 @@ export default function AnalyticsPage() {
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: number) => [`${value}%`, 'Share']}
+                    formatter={(value: any) => [`${value}%`, 'Share']}
                     contentStyle={{
                       backgroundColor: 'hsl(var(--card))',
                       border: '1px solid hsl(var(--border))',
@@ -388,7 +390,7 @@ export default function AnalyticsPage() {
                   tick={{ fontSize: 12 }}
                 />
                 <Tooltip
-                  formatter={(value: number) => formatPrice(value)}
+                  formatter={(value: any) => formatPrice(value as number)}
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
