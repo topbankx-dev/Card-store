@@ -25,7 +25,7 @@ function AdminLoginForm() {
       .then(res => res.json())
       .then(data => {
         if (data?.user?.role === 'ADMIN') {
-          router.push('/admin')
+          router.push('/admin/dashboard')
         }
       })
       .catch(() => {})
@@ -63,7 +63,7 @@ function AdminLoginForm() {
         return
       }
 
-      router.push('/admin')
+      router.push('/admin/dashboard')
       router.refresh()
     } catch (err) {
       setFormError('Something went wrong. Please try again.')
