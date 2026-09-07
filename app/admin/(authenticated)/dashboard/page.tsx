@@ -29,6 +29,7 @@ const sampleAnalytics: AnalyticsData = {
     byDay: Array.from({ length: 30 }, (_, i) => ({
       date: new Date(Date.now() - (29 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       amount: Math.floor(Math.random() * 15000) + 5000,
+      orders: Math.floor(Math.random() * 5) + 1,
     })),
   },
   orders: {

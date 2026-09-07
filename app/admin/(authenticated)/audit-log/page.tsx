@@ -36,7 +36,7 @@ import {
 import { type AuditLog } from '@/lib/admin/types'
 
 // Sample audit logs
-const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
+const sampleLogs: (AuditLog & { user?: { id: string; name?: string; email: string } })[] = [
   {
     id: 'log_1',
     user_id: 'user_456',
@@ -46,7 +46,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { name: 'Blue-Eyes White Dragon', price: 4500 },
     created_at: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.1',
-    user: { name: 'Admin User', email: 'admin@tcghub.jm' },
+    user: { id: 'user_456', name: 'Admin User', email: 'admin@tcghub.jm' },
   },
   {
     id: 'log_2',
@@ -57,7 +57,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { oldStatus: 'PENDING', newStatus: 'PAID' },
     created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.1',
-    user: { name: 'Admin User', email: 'admin@tcghub.jm' },
+    user: { id: 'user_456', name: 'Admin User', email: 'admin@tcghub.jm' },
   },
   {
     id: 'log_3',
@@ -68,7 +68,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { oldRole: 'PLAYER', newRole: 'ADMIN', targetEmail: 'john@example.com' },
     created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.2',
-    user: { name: 'Super Admin', email: 'super@tcghub.jm' },
+    user: { id: 'user_789', name: 'Super Admin', email: 'super@tcghub.jm' },
   },
   {
     id: 'log_4',
@@ -79,7 +79,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { field: 'price', oldValue: 4000, newValue: 4500 },
     created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.1',
-    user: { name: 'Admin User', email: 'admin@tcghub.jm' },
+    user: { id: 'user_456', name: 'Admin User', email: 'admin@tcghub.jm' },
   },
   {
     id: 'log_5',
@@ -90,7 +90,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { code: 'SUMMER20', discount: '20%' },
     created_at: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.1',
-    user: { name: 'Admin User', email: 'admin@tcghub.jm' },
+    user: { id: 'user_456', name: 'Admin User', email: 'admin@tcghub.jm' },
   },
   {
     id: 'log_6',
@@ -101,7 +101,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { amount: 8500, reason: 'Product damaged' },
     created_at: new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.1',
-    user: { name: 'Admin User', email: 'admin@tcghub.jm' },
+    user: { id: 'user_456', name: 'Admin User', email: 'admin@tcghub.jm' },
   },
   {
     id: 'log_7',
@@ -112,7 +112,7 @@ const sampleLogs: (AuditLog & { user?: { name?: string; email: string } })[] = [
     details: { name: 'Old Product' },
     created_at: new Date(Date.now() - 96 * 60 * 60 * 1000).toISOString(),
     ip_address: '192.168.1.2',
-    user: { name: 'Super Admin', email: 'super@tcghub.jm' },
+    user: { id: 'user_789', name: 'Super Admin', email: 'super@tcghub.jm' },
   },
 ]
 
