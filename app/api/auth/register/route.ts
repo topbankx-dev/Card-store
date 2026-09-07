@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
+import { createServerClient } from '@/lib/supabase'
 
-// Force Node.js runtime for Prisma adapter compatibility
-export const runtime = 'nodejs'
+// Use service-role client for user creation (bypasses RLS)
+const adminDb = createServerClient()
 
 export async function POST(request: Request) {
   try {
@@ -26,9 +26,18 @@ export async function POST(request: Request) {
     }
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
+    const { data: existingUser, error: findError } = await adminDb
+      .from('User')
+      .select('id')
+      .eq('email', email)
+      .single()
+
+    if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      )
+    }
 
     if (existingUser) {
       return NextResponse.json(
@@ -41,14 +50,23 @@ export async function POST(request: Request) {
     const password_hash = await bcrypt.hash(password, 12)
 
     // Create user
-    const user = await prisma.user.create({
-      data: {
+    const { data: user, error: createError } = await adminDb
+      .from('User')
+      .insert({
         name,
         email,
         password_hash,
         role: 'PLAYER',
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (createError) {
+      return NextResponse.json(
+        { error: 'Failed to create user' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       success: true,

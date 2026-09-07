@@ -1,9 +1,13 @@
 import NextAuth from 'next-auth'
-import { PrismaAdapter } from '@auth/prisma-adapter'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
-import type { Role } from '@prisma/client'
+import { createServerClient } from '@/lib/supabase'
+import { authConfig } from './auth.config'
+
+// Service-role client for auth (bypasses RLS to read password hashes securely)
+const adminDb = createServerClient()
+
+export type Role = 'PLAYER' | 'ADMIN'
 
 declare module 'next-auth' {
   interface Session {
@@ -22,12 +26,8 @@ declare module 'next-auth' {
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  adapter: PrismaAdapter(prisma),
+  ...authConfig,
   session: { strategy: 'jwt' },
-  pages: {
-    signIn: '/login',
-    error: '/login',
-  },
   providers: [
     Credentials({
       name: 'credentials',
@@ -45,11 +45,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = credentials.password as string
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { email },
-          })
+          const { data: user, error } = await adminDb
+            .from('User')
+            .select('*')
+            .eq('email', email)
+            .single()
 
-          if (!user) {
+          if (error || !user) {
             console.error(`User not found: ${email}`)
             return null
           }
@@ -80,6 +82,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id as string

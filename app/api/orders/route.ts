@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Force Node.js runtime for server-side operations
+export const runtime = 'nodejs'
+
+// Use service-role client for order operations (bypasses RLS for admin/customer flows)
+const adminDb = createServerClient()
 
 // Validation schema for creating an order
 const createOrderSchema = z.object({
@@ -31,40 +37,39 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    const where: Record<string, unknown> = {}
+    let query = adminDb
+      .from('Order')
+      .select(`
+        *,
+        user:User (
+          id,
+          name,
+          email
+        ),
+        items:OrderItem (
+          *,
+          product:Product (
+            id,
+            name,
+            slug,
+            image_url,
+            price
+          )
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .limit(Math.min(limit, 100))
+
     if (status) {
-      where.status = status
+      query = query.eq('status', status)
     }
 
-    const orders = await prisma.order.findMany({
-      where,
-      take: Math.min(limit, 100),
-      orderBy: {
-        created_at: 'desc',
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-        items: {
-          include: {
-            product: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                image_url: true,
-                price: true,
-              },
-            },
-          },
-        },
-      },
-    })
+    const { data: orders, error } = await query
+
+    if (error) {
+      console.error('Error fetching orders:', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     return NextResponse.json(orders)
   } catch (error) {
@@ -91,15 +96,12 @@ export async function POST(request: NextRequest) {
 
     // Verify all products exist and have sufficient stock
     const productIds = validated.items.map(item => item.product_id)
-    const products = await prisma.product.findMany({
-      where: {
-        id: {
-          in: productIds,
-        },
-      },
-    })
+    const { data: products, error: productsError } = await adminDb
+      .from('Product')
+      .select('id, name, price, stock_quantity')
+      .in('id', productIds)
 
-    if (products.length !== productIds.length) {
+    if (productsError || !products || products.length !== productIds.length) {
       return NextResponse.json(
         { error: 'One or more products not found' },
         { status: 400 }
@@ -133,45 +135,63 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Create the order in a transaction
-    const order = await prisma.$transaction(async (tx) => {
-      const newOrder = await tx.order.create({
-        data: {
-          total_amount: totalAmount,
-          fulfillment_type: validated.fulfillment_type,
-          shipping_address: validated.shipping_address,
-          customer_name: validated.customer_name,
-          customer_email: validated.customer_email,
-          customer_phone: validated.customer_phone,
-          notes: validated.notes,
-          status: 'PENDING',
-          items: {
-            create: orderItems,
-          },
-        },
+    // Create the order (Supabase doesn't support Prisma-style nested transactions)
+    // Insert order first, then items, then update stock
+    const { data: newOrder, error: orderError } = await adminDb
+      .from('Order')
+      .insert({
+        total_amount: totalAmount,
+        fulfillment_type: validated.fulfillment_type,
+        shipping_address: validated.shipping_address,
+        customer_name: validated.customer_name,
+        customer_email: validated.customer_email,
+        customer_phone: validated.customer_phone,
+        notes: validated.notes,
+        status: 'PENDING',
       })
+      .select()
+      .single()
 
-      // Update stock quantities
-      for (const item of validated.items) {
-        await tx.product.update({
-          where: { id: item.product_id },
-          data: {
-            stock_quantity: {
-              decrement: item.quantity,
-            },
-          },
-        })
-      }
+    if (orderError) {
+      console.error('Error creating order:', orderError)
+      return NextResponse.json(
+        { error: 'Failed to create order' },
+        { status: 500 }
+      )
+    }
 
-      return newOrder
-    })
+    // Insert order items and update stock in parallel
+    const insertItems = orderItems.map(item =>
+      adminDb.from('OrderItem').insert({
+        orderId: newOrder.id,
+        productId: item.product_id,
+        quantity: item.quantity,
+        price_at_purchase: item.price_at_purchase,
+      })
+    )
+
+    // Decrement stock using the database function (safe from race conditions)
+    const updateStock = validated.items.map(item =>
+      adminDb.rpc('decrement_stock', { row_id: item.product_id, count: item.quantity })
+    )
+
+    const results = await Promise.all([...insertItems, ...updateStock])
+    const errors = results.filter(r => r.error)
+
+    if (errors.length > 0) {
+      console.error('Error creating order items or updating stock:', errors[0].error)
+      return NextResponse.json(
+        { error: 'Failed to create order items' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(
       {
-        id: order.id,
-        total_amount: order.total_amount,
-        status: order.status,
-        fulfillment_type: order.fulfillment_type,
+        id: newOrder.id,
+        total_amount: newOrder.total_amount,
+        status: newOrder.status,
+        fulfillment_type: newOrder.fulfillment_type,
         message: 'Order created successfully',
       },
       { status: 201 }

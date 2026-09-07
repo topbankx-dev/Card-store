@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Use service-role client for admin operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // Validation schema for event filtering
 const eventFilterSchema = z.object({
   game: z.string().optional(),
   status: z.string().optional(),
-  upcoming: z.string().optional(),
+  upcoming: z.boolean().optional(),
   page: z.string().optional(),
   limit: z.string().optional(),
 })
@@ -16,68 +19,56 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
 
+    // Parse and validate query parameters
     const params = eventFilterSchema.parse({
       game: searchParams.get('game') ?? undefined,
       status: searchParams.get('status') ?? undefined,
-      upcoming: searchParams.get('upcoming') ?? undefined,
+      upcoming: searchParams.get('upcoming') === 'true' ? true :
+               searchParams.get('upcoming') === 'false' ? false : undefined,
       page: searchParams.get('page') ?? '1',
       limit: searchParams.get('limit') ?? '20',
     })
 
-    const where: Record<string, unknown> = {}
-
-    if (params.game) {
-      where.game = params.game.toUpperCase()
-    }
-    if (params.status) {
-      where.status = params.status.toUpperCase()
-    }
-    if (params.upcoming === 'true') {
-      where.event_date = {
-        gte: new Date(),
-      }
-      where.status = 'UPCOMING'
-    }
-
+    // Pagination
     const page = parseInt(params.page ?? '1') || 1
     const limit = Math.min(parseInt(params.limit ?? '20') || 20, 100)
-    const skip = (page - 1) * limit
+    const from = (page - 1) * limit
+    const to = from + limit - 1
 
-    const [events, total] = await Promise.all([
-      prisma.event.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          event_date: 'asc',
-        },
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          game: true,
-          description: true,
-          event_date: true,
-          end_date: true,
-          entry_fee: true,
-          max_capacity: true,
-          current_registered: true,
-          location: true,
-          status: true,
-          image_url: true,
-          created_at: true,
-        },
-      }),
-      prisma.event.count({ where }),
-    ])
+    // Build query
+    let query = supabase
+      .from('Event')
+      .select('*', { count: 'exact' })
+      .order('event_date', { ascending: true })
+
+    if (params.game) {
+      query = query.eq('game', params.game.toUpperCase())
+    }
+    if (params.status) {
+      query = query.eq('status', params.status.toUpperCase())
+    }
+    if (params.upcoming !== undefined) {
+      if (params.upcoming) {
+        query = query.gte('event_date', new Date().toISOString())
+      } else {
+        query = query.lt('event_date', new Date().toISOString())
+      }
+    }
+
+    const { data: events, count, error } = await query.range(from, to)
+
+    if (error) {
+      console.error('Error fetching events:', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     return NextResponse.json({
       events,
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
       },
     })
   } catch (error) {
@@ -103,22 +94,35 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
 
     // TODO: Add admin authentication check here
+    // const session = await getServerSession()
+    // if (session?.user?.role !== 'ADMIN') {
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // }
 
-    const event = await prisma.event.create({
-      data: {
+    const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+
+    const { data: event, error } = await adminDb
+      .from('Event')
+      .insert({
         name: body.name,
-        slug: body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        slug,
         game: body.game,
         description: body.description,
-        event_date: new Date(body.event_date),
-        end_date: body.end_date ? new Date(body.end_date) : null,
+        event_date: body.event_date,
+        end_date: body.end_date,
         entry_fee: body.entry_fee,
         max_capacity: body.max_capacity,
         location: body.location || 'In-Store',
+        status: body.status || 'UPCOMING',
         image_url: body.image_url,
-        status: 'UPCOMING',
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating event:', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     return NextResponse.json(event, { status: 201 })
   } catch (error) {
