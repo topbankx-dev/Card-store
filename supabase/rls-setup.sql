@@ -11,12 +11,6 @@ ALTER TABLE "EventRegistration" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Order" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "OrderItem" ENABLE ROW LEVEL SECURITY;
 
--- NextAuth tables
-ALTER TABLE "next_auth"."users" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "next_auth"."accounts" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "next_auth"."sessions" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE "next_auth"."verification_tokens" ENABLE ROW LEVEL SECURITY;
-
 -- ============================================
 -- Product Policies (public read, admin write)
 -- ============================================
@@ -118,34 +112,6 @@ USING (true)
 WITH CHECK (true);
 
 -- ============================================
--- NextAuth Policies (service role only)
--- ============================================
-
-CREATE POLICY "Service role can manage next_auth users"
-ON "next_auth"."users" FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
-
-CREATE POLICY "Service role can manage accounts"
-ON "next_auth"."accounts" FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
-
-CREATE POLICY "Service role can manage sessions"
-ON "next_auth"."sessions" FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
-
-CREATE POLICY "Service role can manage verification tokens"
-ON "next_auth"."verification_tokens" FOR ALL
-TO service_role
-USING (true)
-WITH CHECK (true);
-
--- ============================================
 -- Helper function for stock decrement (used in orders)
 -- ============================================
 
@@ -168,7 +134,3 @@ GRANT EXECUTE ON FUNCTION decrement_stock TO service_role;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
-
-GRANT USAGE ON SCHEMA next_auth TO service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA next_auth TO service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA next_auth TO service_role;
