@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Force Node.js runtime for server-side operations
+export const runtime = 'nodejs'
+
+// Use service-role client for order operations (bypasses RLS for admin/customer flows)
+const adminDb = createServerClient()
 
 // Validation schema for creating an order
 const createOrderSchema = z.object({
@@ -31,7 +37,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status')
     const limit = parseInt(searchParams.get('limit') || '50')
 
-    let query = supabase
+    let query = adminDb
       .from('Order')
       .select(`
         *,
@@ -90,7 +96,7 @@ export async function POST(request: NextRequest) {
 
     // Verify all products exist and have sufficient stock
     const productIds = validated.items.map(item => item.product_id)
-    const { data: products, error: productsError } = await supabase
+    const { data: products, error: productsError } = await adminDb
       .from('Product')
       .select('id, name, price, stock_quantity')
       .in('id', productIds)
@@ -131,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     // Create the order (Supabase doesn't support Prisma-style nested transactions)
     // Insert order first, then items, then update stock
-    const { data: newOrder, error: orderError } = await supabase
+    const { data: newOrder, error: orderError } = await adminDb
       .from('Order')
       .insert({
         total_amount: totalAmount,
@@ -156,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Insert order items and update stock in parallel
     const insertItems = orderItems.map(item =>
-      supabase.from('OrderItem').insert({
+      adminDb.from('OrderItem').insert({
         orderId: newOrder.id,
         productId: item.product_id,
         quantity: item.quantity,
@@ -164,11 +170,9 @@ export async function POST(request: NextRequest) {
       })
     )
 
+    // Decrement stock using the database function (safe from race conditions)
     const updateStock = validated.items.map(item =>
-      supabase
-        .from('Product')
-        .update({ stock_quantity: supabase.rpc('decrement', { row_id: item.product_id, count: item.quantity }) })
-        .eq('id', item.product_id)
+      adminDb.rpc('decrement_stock', { row_id: item.product_id, count: item.quantity })
     )
 
     const results = await Promise.all([...insertItems, ...updateStock])

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
+
+// Use service-role client for admin operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // GET /api/events/[id] - Fetch a single event
 export async function GET(
@@ -67,7 +70,7 @@ export async function PATCH(
 
     // TODO: Add admin authentication check here
 
-    const { data: event, error } = await supabase
+    const { data: event, error } = await adminDb
       .from('Event')
       .update({
         name: body.name,

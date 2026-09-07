@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
+
+// Use service-role client for admin operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // GET /api/products/[id] - Fetch a single product by ID or slug
 export async function GET(
@@ -69,7 +72,7 @@ export async function PATCH(
 
     // TODO: Add admin authentication check here
 
-    const { data: product, error } = await supabase
+    const { data: product, error } = await adminDb
       .from('Product')
       .update({
         name: body.name,
@@ -117,7 +120,7 @@ export async function DELETE(
 
     // TODO: Add admin authentication check here
 
-    const { error } = await supabase
+    const { error } = await adminDb
       .from('Product')
       .delete()
       .eq('id', id)

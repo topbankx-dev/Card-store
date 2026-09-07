@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { supabase } from '@/lib/supabase'
+import { createServerClient, supabase } from '@/lib/supabase'
+
+// Use service-role client for setup operations (bypasses RLS for initial user creation)
+const adminDb = createServerClient()
 
 export async function POST(request: Request) {
   try {
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
     }
 
     // Check if user exists
-    const { data: existing, error: findError } = await supabase
+    const { data: existing, error: findError } = await adminDb
       .from('User')
       .select('id')
       .eq('email', email)
@@ -42,7 +45,7 @@ export async function POST(request: Request) {
     // Hash password and create user
     const password_hash = await bcrypt.hash(password, 12)
 
-    const { data: user, error } = await supabase
+    const { data: user, error } = await adminDb
       .from('User')
       .insert({
         name,
