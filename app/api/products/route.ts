@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
+
+// Use service-role client for admin operations (bypasses RLS)
+const adminDb = createServerClient()
 
 // Validation schema for product filtering
 const productFilterSchema = z.object({
@@ -35,83 +38,59 @@ export async function GET(request: NextRequest) {
       limit: searchParams.get('limit') ?? '20',
     })
 
-    // Build the where clause
-    const where: Record<string, unknown> = {}
-
-    if (params.game) {
-      where.game = params.game.toUpperCase()
-    }
-    if (params.set) {
-      where.set = { contains: params.set, mode: 'insensitive' }
-    }
-    if (params.rarity) {
-      where.rarity = params.rarity.toUpperCase()
-    }
-    if (params.condition) {
-      where.condition = params.condition.toUpperCase()
-    }
-    if (params.minPrice || params.maxPrice) {
-      where.price = {}
-      if (params.minPrice) {
-        (where.price as Record<string, unknown>).gte = parseFloat(params.minPrice)
-      }
-      if (params.maxPrice) {
-        (where.price as Record<string, unknown>).lte = parseFloat(params.maxPrice)
-      }
-    }
-    if (params.search) {
-      where.OR = [
-        { name: { contains: params.search, mode: 'insensitive' } },
-        { description: { contains: params.search, mode: 'insensitive' } },
-        { set: { contains: params.search, mode: 'insensitive' } },
-      ]
-    }
-    if (params.featured === 'true') {
-      where.is_featured = true
-    }
-
     // Pagination
     const page = parseInt(params.page ?? '1') || 1
     const limit = Math.min(parseInt(params.limit ?? '20') || 20, 100)
-    const skip = (page - 1) * limit
+    const from = (page - 1) * limit
+    const to = from + limit - 1
 
-    // Execute query with pagination
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: [
-          { is_featured: 'desc' },
-          { created_at: 'desc' },
-        ],
-        select: {
-          id: true,
-          name: true,
-          slug: true,
-          game: true,
-          set: true,
-          rarity: true,
-          condition: true,
-          price: true,
-          stock_quantity: true,
-          image_url: true,
-          description: true,
-          is_featured: true,
-          is_sealed: true,
-          created_at: true,
-        },
-      }),
-      prisma.product.count({ where }),
-    ])
+    // Build query
+    let query = supabase
+      .from('Product')
+      .select('*', { count: 'exact' })
+      .order('is_featured', { ascending: false })
+      .order('created_at', { ascending: false })
+      .range(from, to)
+
+    if (params.game) {
+      query = query.eq('game', params.game.toUpperCase())
+    }
+    if (params.set) {
+      query = query.ilike('set', `%${params.set}%`)
+    }
+    if (params.rarity) {
+      query = query.eq('rarity', params.rarity.toUpperCase())
+    }
+    if (params.condition) {
+      query = query.eq('condition', params.condition.toUpperCase())
+    }
+    if (params.minPrice) {
+      query = query.gte('price', parseFloat(params.minPrice))
+    }
+    if (params.maxPrice) {
+      query = query.lte('price', parseFloat(params.maxPrice))
+    }
+    if (params.search) {
+      query = query.or(`name.ilike.%${params.search}%,description.ilike.%${params.search}%,set.ilike.%${params.search}%`)
+    }
+    if (params.featured === 'true') {
+      query = query.eq('is_featured', true)
+    }
+
+    const { data: products, count, error } = await query
+
+    if (error) {
+      console.error('Error fetching products:', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     return NextResponse.json({
       products,
       pagination: {
         page,
         limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+        total: count || 0,
+        totalPages: Math.ceil((count || 0) / limit),
       },
     })
   } catch (error) {
@@ -142,10 +121,13 @@ export async function POST(request: NextRequest) {
     //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     // }
 
-    const product = await prisma.product.create({
-      data: {
+    const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+
+    const { data: product, error } = await adminDb
+      .from('Product')
+      .insert({
         name: body.name,
-        slug: body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        slug,
         game: body.game,
         set: body.set,
         rarity: body.rarity,
@@ -156,8 +138,14 @@ export async function POST(request: NextRequest) {
         description: body.description,
         is_featured: body.is_featured || false,
         is_sealed: body.is_sealed || false,
-      },
-    })
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating product:', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     return NextResponse.json(product, { status: 201 })
   } catch (error) {
