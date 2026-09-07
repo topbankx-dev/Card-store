@@ -36,3 +36,5 @@ yarn-error.log*
 next-env.d.ts
 .prisma-composer/
 .alchemy/
+# Supabase CLI token - DO NOT COMMIT
+.supa_token
