@@ -85,7 +85,10 @@ WITH CHECK (true);
 -- User Policies (own data + service role)
 -- ============================================
 
-CREATE POLICY "Users can read own profile"
+-- No public read on User (password hashes should not be exposed)
+-- Auth is handled server-side via service_role client
+
+CREATE POLICY "Authenticated users can read own profile"
 ON "User" FOR SELECT
 TO authenticated
 USING (auth.uid()::text = id::text);
