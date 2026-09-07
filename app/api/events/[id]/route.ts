@@ -7,10 +7,10 @@ const adminDb = createServerClient()
 // GET /api/events/[id] - Fetch a single event
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Get event by ID
     let { data: event, error: eventError } = await supabase
@@ -62,10 +62,10 @@ export async function GET(
 // PATCH /api/events/[id] - Update an event (Admin only)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     // TODO: Add admin authentication check here

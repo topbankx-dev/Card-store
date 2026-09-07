@@ -16,10 +16,10 @@ const registerSchema = z.object({
 // GET /api/events/[id]/registrations - List registrations for an event (Admin only)
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Verify event exists
     const { data: event, error: eventError } = await supabase
@@ -71,10 +71,10 @@ export async function GET(
 // POST /api/events/[id]/registrations - Register for an event
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     // Validate request body

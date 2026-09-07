@@ -7,10 +7,10 @@ const adminDb = createServerClient()
 // GET /api/products/[id] - Fetch a single product by ID or slug
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // Try to find by ID first, then by slug
     let { data: product, error } = await supabase
@@ -64,10 +64,10 @@ export async function GET(
 // PATCH /api/products/[id] - Update a product (Admin only)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
     const body = await request.json()
 
     // TODO: Add admin authentication check here
@@ -113,10 +113,10 @@ export async function PATCH(
 // DELETE /api/products/[id] - Delete a product (Admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params
+    const { id } = await params
 
     // TODO: Add admin authentication check here
 
