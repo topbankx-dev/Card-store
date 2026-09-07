@@ -10,87 +10,29 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Calendar, Clock, MapPin, Users, Trophy, ArrowLeft, Check, AlertCircle, Loader2 } from 'lucide-react'
-import { cn, formatDate } from '@/lib/utils'
-
-// Sample event data - in production, fetch from /api/events/[slug]
-const sampleEvents: Record<string, {
-  id: string
-  name: string
-  slug: string
-  game: string
-  description: string
-  event_date: string
-  end_date?: string
-  entry_fee: number
-  max_capacity: number
-  current_registered: number
-  location: string
-  status: string
-  format?: string
-  prize?: string
-}> = {
-  'friday-night-magic': {
-    id: '1',
-    name: 'Friday Night Magic',
-    slug: 'friday-night-magic',
-    game: 'MTG',
-    description: 'Join us every Friday for our popular Magic: The Gathering night! We run two pods of Commander (casual) alongside a competitive Standard showdown. Entry includes a promo pack, with store credit and set boosters for the top performers in Standard. Whether you\'re a veteran or just learning, there\'s a seat for you.',
-    event_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 1500,
-    max_capacity: 24,
-    current_registered: 12,
-    location: 'In-Store',
-    status: 'UPCOMING',
-    format: 'Commander (Casual) + Standard (Competitive)',
-    prize: 'Promo packs for all, store credit for top Standard',
-  },
-  'ygo-ots-tournament': {
-    id: '2',
-    name: 'Yu-Gi-Oh! OTS Tournament',
-    slug: 'ygo-ots-tournament',
-    game: 'YGO',
-    description: 'Our monthly OTS Championship is here! This Konami-sanctioned event awards OTS promo cards to top finishers and carries Championship Points for the YCS season. Swiss rounds based on attendance, followed by Top 8 single elimination. Prepare your deck and come ready to compete!',
-    event_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 2000,
-    max_capacity: 32,
-    current_registered: 28,
-    location: 'In-Store',
-    status: 'UPCOMING',
-    format: 'Advanced (Tournament Legal)',
-    prize: 'OTS Promos + YCS Points',
-  },
-  'pokemon-vgc-cup': {
-    id: '3',
-    name: 'Pokémon VGC Cup',
-    slug: 'pokemon-vgc-cup',
-    game: 'POKEMON',
-    description: 'Championship Points on the line! This VGC event follows the official Pokemon tournament rules and uses the current Season\'s Legal formats. Singles bracket, best-of-three matches. Bring your best team and climb the ranks to earn valuable CP toward the World Championships.',
-    event_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 2500,
-    max_capacity: 20,
-    current_registered: 8,
-    location: 'In-Store',
-    status: 'UPCOMING',
-    format: 'VGC 2024 (Sun & Moon)',
-    prize: 'Championship Points + Exclusive Playmats',
-  },
-  'naruto-beginner-night': {
-    id: '5',
-    name: 'Naruto CCG Beginner Night',
-    slug: 'naruto-beginner-night',
-    game: 'NARUTO',
-    description: 'Curious about Naruto Shippuden: The Last Crusade? This beginner-friendly event is the perfect introduction. We provide loaner decks so you can jump right in — no collection required. Learn the rules, play some games, and meet fellow ninja in training!',
-    event_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 500,
-    max_capacity: 16,
-    current_registered: 6,
-    location: 'In-Store',
-    status: 'UPCOMING',
-    format: 'Beginner Friendly / Loaner Decks',
-    prize: 'Starter packs for all participants',
-  },
-}
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Trophy,
+  ArrowLeft,
+  Check,
+  AlertCircle,
+  Loader2,
+  ExternalLink,
+  Copy,
+  Share2,
+  Gamepad2,
+  Shield,
+  RefreshCw,
+  FileText,
+  Apple,
+} from 'lucide-react'
+import { cn, formatDate, formatPrice } from '@/lib/utils'
+import { GAME_LABELS } from '@/lib/admin/types'
+import { EXPERIENCE_LABELS, DECK_OWNERSHIP_LABELS, generateCalendarLinks, generateSurveyLink } from '@/lib/validations/event'
+import type { Event, TicketTier } from '@/lib/admin/types'
 
 const gameColors: Record<string, string> = {
   MTG: 'bg-red-500/10 text-red-500 border-red-500/20',
@@ -98,25 +40,21 @@ const gameColors: Record<string, string> = {
   POKEMON: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
   ONE_PIECE: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   NARUTO: 'bg-green-500/10 text-green-500 border-green-500/20',
-}
-
-const gameLabels: Record<string, string> = {
-  MTG: 'Magic: The Gathering',
-  YGO: 'Yu-Gi-Oh!',
-  POKEMON: 'Pokémon',
-  ONE_PIECE: 'One Piece',
-  NARUTO: 'Naruto',
+  DIGIMON: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
 }
 
 export default function EventDetailPage() {
   const params = useParams()
   const slug = params.slug as string
 
-  const event = sampleEvents[slug]
-
+  const [event, setEvent] = useState<Event | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isRegistering, setIsRegistering] = useState(false)
   const [registrationSuccess, setRegistrationSuccess] = useState(false)
   const [registrationError, setRegistrationError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -124,7 +62,52 @@ export default function EventDetailPage() {
     paymentMethod: 'pay_at_store',
   })
 
-  if (!event) {
+  useEffect(() => {
+    const fetchEvent = async () => {
+      try {
+        // Try admin API first to get full event data
+        const res = await fetch(`/api/admin/events?slug=${encodeURIComponent(slug)}&limit=1`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.data && data.data.length > 0) {
+            // Check if event is public
+            const eventData = data.data[0]
+            if (eventData.visibility === 'PRIVATE') {
+              setError('This event is private')
+              return
+            }
+            setEvent(eventData)
+            return
+          }
+        }
+        setError('Event not found')
+      } catch (err) {
+        setError('Failed to load event')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEvent()
+  }, [slug])
+
+  // Store event id for registration API
+  const eventId = event?.id
+
+  if (loading) {
+    return (
+      <>
+        <Header />
+        <CartSidebar />
+        <main className="min-h-screen flex items-center justify-center">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </main>
+        <Footer />
+      </>
+    )
+  }
+
+  if (error || !event) {
     return (
       <>
         <Header />
@@ -134,7 +117,7 @@ export default function EventDetailPage() {
             <AlertCircle className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
             <h1 className="text-2xl font-bold mb-2">Event Not Found</h1>
             <p className="text-muted-foreground mb-6">
-              The event you're looking for doesn't exist or has been removed.
+              {error || "The event you're looking for doesn't exist or has been removed."}
             </p>
             <Button asChild>
               <Link href="/events">Browse All Events</Link>
@@ -146,10 +129,11 @@ export default function EventDetailPage() {
     )
   }
 
-  const isFull = event.current_registered >= event.max_capacity
+  const isFull = (event.registration_count || 0) >= (event.max_capacity || 0)
   const isPast = new Date(event.event_date) < new Date()
-  const spotsLeft = event.max_capacity - event.current_registered
-  const capacityPercent = (event.current_registered / event.max_capacity) * 100
+  const spotsLeft = (event.max_capacity || 0) - (event.registration_count || 0)
+  const capacityPercent = ((event.registration_count || 0) / (event.max_capacity || 1)) * 100
+  const calendarLinks = generateCalendarLinks(event)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -157,18 +141,20 @@ export default function EventDetailPage() {
     setRegistrationError(null)
 
     try {
-      const response = await fetch(`/api/events/${event.id}/registrations`, {
+      const response = await fetch(`/api/events/${eventId}/registrations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           guest_name: formData.name,
           guest_email: formData.email,
+          guest_phone: formData.phone || undefined,
           payment_status: formData.paymentMethod === 'pay_at_store' ? 'PENDING' : 'PAID',
         }),
       })
 
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.error || 'Registration failed')
       }
 
@@ -178,6 +164,12 @@ export default function EventDetailPage() {
     } finally {
       setIsRegistering(false)
     }
+  }
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(window.location.href)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   return (
@@ -208,11 +200,16 @@ export default function EventDetailPage() {
                     variant="outline"
                     className={cn(gameColors[event.game] || 'bg-primary/10 text-primary')}
                   >
-                    {gameLabels[event.game] || event.game}
+                    {GAME_LABELS[event.game] || event.game}
                   </Badge>
                   {event.status === 'UPCOMING' && (
                     <Badge variant="outline" className="bg-blue-500/10 text-blue-500 border-blue-500/20">
                       Upcoming
+                    </Badge>
+                  )}
+                  {event.status === 'ONGOING' && (
+                    <Badge variant="outline" className="bg-green-500/10 text-green-500 border-green-500/20">
+                      🔴 Live Now
                     </Badge>
                   )}
                   {event.status === 'CANCELLED' && (
@@ -244,21 +241,67 @@ export default function EventDetailPage() {
                       {event.format}
                     </div>
                   )}
+                  {event.experience_level && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
+                      <Gamepad2 className="w-4 h-4" />
+                      {EXPERIENCE_LABELS[event.experience_level]}
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Description */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>About This Event</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground leading-relaxed">{event.description}</p>
-                </CardContent>
-              </Card>
+              {event.description && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>About This Event</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                      {event.description}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* TCG Details */}
+              {(event.format || event.experience_level || event.deck_ownership || event.subformat) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Gamepad2 className="w-5 h-5" />
+                      Event Format
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-3">
+                      {event.format && (
+                        <Badge variant="secondary" className="text-sm">
+                          {event.format}
+                        </Badge>
+                      )}
+                      {event.subformat && (
+                        <Badge variant="secondary" className="text-sm">
+                          {event.subformat}
+                        </Badge>
+                      )}
+                      {event.experience_level && (
+                        <Badge variant="secondary" className="text-sm">
+                          {EXPERIENCE_LABELS[event.experience_level]}
+                        </Badge>
+                      )}
+                      {event.deck_ownership && (
+                        <Badge variant="secondary" className="text-sm">
+                          {DECK_OWNERSHIP_LABELS[event.deck_ownership]}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Prize info */}
-              {event.prize && (
+              {event.prize_pool && (
                 <Card className="border-primary/20 bg-primary/5">
                   <CardHeader className="pb-2">
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -267,7 +310,131 @@ export default function EventDetailPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-foreground">{event.prize}</p>
+                    <p className="text-foreground">{event.prize_pool}</p>
+                    {event.prize_description && (
+                      <p className="text-sm text-muted-foreground mt-2">{event.prize_description}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Ticket Tiers */}
+              {event.ticket_tiers && event.ticket_tiers.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5" />
+                      Ticket Options
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {event.ticket_tiers.map((tier: TicketTier) => (
+                        <div
+                          key={tier.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-muted/50"
+                        >
+                          <div>
+                            <p className="font-medium">{tier.name}</p>
+                            {tier.description && (
+                              <p className="text-sm text-muted-foreground">{tier.description}</p>
+                            )}
+                          </div>
+                          <p className="font-bold">
+                            {tier.price === 0 ? 'Free' : formatPrice(tier.price)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Virtual link */}
+              {event.virtual_link && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Virtual Participation</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <a
+                      href={event.virtual_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Join Virtual Event
+                    </a>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Trust & Policies */}
+              {(event.refund_enabled || event.code_of_conduct_enabled || event.cancellation_consent_required) && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Shield className="w-5 h-5" />
+                      Event Policies
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {event.refund_enabled && event.refund_policy && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <RefreshCw className="w-4 h-4 text-muted-foreground" />
+                          <h4 className="font-medium">Refund Policy</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap pl-6">
+                          {event.refund_policy}
+                        </p>
+                      </div>
+                    )}
+                    {event.code_of_conduct_enabled && event.code_of_conduct && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <FileText className="w-4 h-4 text-muted-foreground" />
+                          <h4 className="font-medium">Code of Conduct</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap pl-6">
+                          {event.code_of_conduct}
+                        </p>
+                      </div>
+                    )}
+                    {event.cancellation_consent_required && event.cancellation_policy && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertCircle className="w-4 h-4 text-muted-foreground" />
+                          <h4 className="font-medium">Cancellation Policy</h4>
+                        </div>
+                        <p className="text-sm text-muted-foreground whitespace-pre-wrap pl-6">
+                          {event.cancellation_policy}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Post-event survey (only show if event is past) */}
+              {isPast && event.status === 'COMPLETED' && (
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-primary" />
+                      Event Feedback
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Thanks for attending! Share your feedback to help us improve future events.
+                    </p>
+                    <Button variant="outline" asChild className="w-full">
+                      <Link href={generateSurveyLink(event.slug, event.id)}>
+                        Take Event Survey
+                      </Link>
+                    </Button>
                   </CardContent>
                 </Card>
               )}
@@ -285,7 +452,7 @@ export default function EventDetailPage() {
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-muted-foreground">Entry Fee</span>
                     <span className="font-bold text-lg">
-                      {event.entry_fee === 0 ? 'Free' : `$${event.entry_fee.toLocaleString()} JMD`}
+                      {event.entry_fee === 0 ? 'Free' : formatPrice(event.entry_fee || 0)}
                     </span>
                   </div>
 
@@ -294,7 +461,7 @@ export default function EventDetailPage() {
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Capacity</span>
                       <span className="font-medium">
-                        {event.current_registered}/{event.max_capacity}
+                        {event.registration_count || 0}/{event.max_capacity}
                       </span>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -307,7 +474,11 @@ export default function EventDetailPage() {
                       />
                     </div>
                     <p className="text-xs text-muted-foreground text-right">
-                      {isFull ? 'Event is full' : `${spotsLeft} spots remaining`}
+                      {isFull
+                        ? event.waitlist_enabled
+                          ? 'Waitlist available'
+                          : 'Event is full'
+                        : `${spotsLeft} spots remaining`}
                     </p>
                   </div>
 
@@ -329,18 +500,26 @@ export default function EventDetailPage() {
                         hour: 'numeric',
                         minute: '2-digit',
                       })}
+                      {event.end_date && (
+                        <span className="text-muted-foreground">
+                          {' '} - {new Date(event.end_date).toLocaleTimeString('en-JM', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      )}
                     </span>
                   </div>
 
                   {/* Registration form */}
-                  {!isPast && event.status !== 'CANCELLED' && !registrationSuccess && (
+                  {!isPast && event.status !== 'CANCELLED' && event.status !== 'COMPLETED' && !registrationSuccess && (
                     <div className="pt-4 border-t space-y-4">
-                      {isFull ? (
+                      {isFull && !event.waitlist_enabled ? (
                         <div className="text-center py-4">
                           <AlertCircle className="w-8 h-8 mx-auto mb-2 text-orange-500" />
                           <p className="font-medium">This event is full</p>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Join our waitlist or check back for cancellations.
+                            Check back for cancellations.
                           </p>
                         </div>
                       ) : (
@@ -422,7 +601,7 @@ export default function EventDetailPage() {
                                 Registering...
                               </>
                             ) : (
-                              'Register Now'
+                              isFull ? 'Join Waitlist' : 'Register Now'
                             )}
                           </Button>
                         </form>
@@ -457,16 +636,75 @@ export default function EventDetailPage() {
                 </CardContent>
               </Card>
 
-              {/* Share */}
+              {/* Share & Actions */}
               <Card>
-                <CardContent className="p-4">
-                  <p className="text-sm text-muted-foreground mb-3">Share this event</p>
+                <CardContent className="p-4 space-y-3">
+                  <p className="text-sm text-muted-foreground">Share this event</p>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Copy Link
+                    <Button variant="outline" size="sm" className="flex-1" onClick={copyLink}>
+                      {copied ? (
+                        <>
+                          <Check className="w-4 h-4 mr-1" />
+                          Copied!
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-4 h-4 mr-1" />
+                          Copy Link
+                        </>
+                      )}
                     </Button>
-                    <Button variant="outline" size="sm" className="flex-1">
-                      Add to Calendar
+                    <Button variant="outline" size="sm" className="flex-1" asChild>
+                      <a href={calendarLinks.google} target="_blank" rel="noopener noreferrer">
+                        <Calendar className="w-4 h-4 mr-1" />
+                        Calendar
+                      </a>
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        const start = new Date(event.event_date)
+                        const end = event.end_date ? new Date(event.end_date) : new Date(start.getTime() + 3 * 60 * 60 * 1000)
+                        const formatDate = (d: Date) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+                        const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+DTSTART:${formatDate(start).replace('Z', '')}
+DTEND:${formatDate(end).replace('Z', '')}
+SUMMARY:${event.name}
+DESCRIPTION:${event.description || ''}
+LOCATION:${event.location || ''}
+END:VEVENT
+END:VCALENDAR`
+                        const blob = new Blob([icsContent], { type: 'text/calendar' })
+                        const url = URL.createObjectURL(blob)
+                        const a = document.createElement('a')
+                        a.href = url
+                        a.download = `${event.slug}.ics`
+                        a.click()
+                        URL.revokeObjectURL(url)
+                      }}
+                    >
+                      <Apple className="w-4 h-4 mr-1" />
+                      Apple
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => {
+                        const start = new Date(event.event_date)
+                        const end = event.end_date ? new Date(event.end_date) : new Date(start.getTime() + 3 * 60 * 60 * 1000)
+                        const url = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.name)}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&location=${encodeURIComponent(event.location || '')}&body=${encodeURIComponent(event.description || '')}`
+                        window.open(url, '_blank')
+                      }}
+                    >
+                      <Calendar className="w-4 h-4 mr-1" />
+                      Outlook
                     </Button>
                   </div>
                 </CardContent>

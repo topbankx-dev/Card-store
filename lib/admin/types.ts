@@ -36,9 +36,10 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
 }
 
 // Event status types
-export type EventStatus = 'UPCOMING' | 'ONGOING' | 'COMPLETED' | 'CANCELLED'
+export type EventStatus = 'DRAFT' | 'UPCOMING' | 'ONGOING' | 'COMPLETED' | 'CANCELLED'
 
 export const EVENT_STATUS_LABELS: Record<EventStatus, string> = {
+  DRAFT: 'Draft',
   UPCOMING: 'Upcoming',
   ONGOING: 'Ongoing',
   COMPLETED: 'Completed',
@@ -221,13 +222,68 @@ export interface Event {
   description?: string
   event_date: string
   end_date?: string
+  registration_deadline?: string
+  location?: string
+  virtual_link?: string
   entry_fee?: number
   max_capacity?: number
-  location?: string
-  status: EventStatus
-  image_url?: string
-  created_at: string
   registration_count?: number
+  waitlist_enabled?: boolean
+  waitlist_max?: number
+
+  // TCG-specific fields
+  format?: string
+  experience_level?: 'BEGINNER' | 'INTERMEDIATE' | 'COMPETITIVE' | 'ALL'
+  subformat?: string
+  deck_ownership?: 'BYO' | 'PROVIDED' | 'BOTH'
+  max_tables?: number
+  prize_pool?: string
+  prize_description?: string
+
+  // Media & visibility
+  image_url?: string
+  visibility?: 'PUBLIC' | 'PRIVATE' | 'UNLISTED'
+
+  // Recurring
+  is_recurring?: boolean
+  recurring_pattern?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+  recurring_end_date?: string
+  recurring_count?: number
+
+  // Trust & Policies
+  refund_policy?: string
+  refund_enabled?: boolean
+  refund_deadline_hours?: number
+  code_of_conduct?: string
+  code_of_conduct_enabled?: boolean
+  cancellation_policy?: string
+  cancellation_consent_required?: boolean
+  media_release?: boolean
+  attendee_visibility?: 'PUBLIC' | 'PRIVATE' | 'HIDDEN'
+  auto_reminder_1_week?: boolean
+  auto_reminder_1_day?: boolean
+  auto_reminder_1_hour?: boolean
+
+  // Metadata
+  status: EventStatus
+  created_at: string
+  updated_at?: string
+
+  // Relations
+  ticket_tiers?: TicketTier[]
+}
+
+// Ticket tier type
+export interface TicketTier {
+  id: string
+  event_id: string
+  name: string
+  price: number
+  quantity: number
+  sold_count: number
+  description?: string
+  benefits?: string[]
+  created_at?: string
 }
 
 // PromoCode type

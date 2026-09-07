@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
@@ -10,143 +10,44 @@ import { EventFilters, type ViewMode } from '@/components/event-filters'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Calendar, MapPin, Users, ArrowRight, Trophy, Sparkles } from 'lucide-react'
+import { Calendar, MapPin, Users, ArrowRight, Trophy, Sparkles, Loader2 } from 'lucide-react'
 import { formatDate, cn } from '@/lib/utils'
-
-// Sample event data - in production, this would come from /api/events
-const sampleEvents: Event[] = [
-  {
-    id: '1',
-    name: 'Friday Night Magic',
-    slug: 'friday-night-magic',
-    game: 'MTG',
-    description: 'Casual Commander + Competitive Standard. Prizes from the latest set for top 4.',
-    event_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 1500,
-    max_capacity: 24,
-    current_registered: 12,
-    location: 'In-Store',
-    status: 'UPCOMING',
-  },
-  {
-    id: '2',
-    name: 'Yu-Gi-Oh! OTS Tournament',
-    slug: 'ygo-ots-tournament',
-    game: 'YGO',
-    description: 'Official Tournament Store event with exclusive OTS promo cards for top finishers.',
-    event_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 2000,
-    max_capacity: 32,
-    current_registered: 28,
-    location: 'In-Store',
-    status: 'UPCOMING',
-  },
-  {
-    id: '3',
-    name: 'Pokémon VGC Cup',
-    slug: 'pokemon-vgc-cup',
-    game: 'POKEMON',
-    description: 'Championship Points event - bring your best team! Single elimination bracket.',
-    event_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 2500,
-    max_capacity: 20,
-    current_registered: 8,
-    location: 'In-Store',
-    status: 'UPCOMING',
-  },
-  {
-    id: '4',
-    name: 'Sunday Casual Day',
-    slug: 'sunday-casual-day',
-    game: 'ONE_PIECE',
-    description: 'Free entry - casual play, trade, and learn. New players welcome!',
-    event_date: new Date(Date.now() + 8 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 0,
-    max_capacity: 40,
-    current_registered: 5,
-    location: 'In-Store',
-    status: 'UPCOMING',
-  },
-  {
-    id: '5',
-    name: 'Naruto CCG Beginner Night',
-    slug: 'naruto-beginner-night',
-    game: 'NARUTO',
-    description: 'Learn to play Naruto CCG! Loaner decks provided for first-timers.',
-    event_date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 500,
-    max_capacity: 16,
-    current_registered: 6,
-    location: 'In-Store',
-    status: 'UPCOMING',
-  },
-  {
-    id: '6',
-    name: 'Modern Showdown',
-    slug: 'modern-showdown',
-    game: 'MTG',
-    description: 'Competitive Modern format. $30 store credit to 1st place.',
-    event_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 3000,
-    max_capacity: 32,
-    current_registered: 18,
-    location: 'In-Store',
-    status: 'UPCOMING',
-  },
-  {
-    id: '7',
-    name: 'Yu-Gi-Oh! Locals',
-    slug: 'ygo-locals',
-    game: 'YGO',
-    description: 'Weekly local tournament. Win OTS promos and store points.',
-    event_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 1500,
-    max_capacity: 24,
-    current_registered: 24,
-    location: 'In-Store',
-    status: 'COMPLETED',
-  },
-  {
-    id: '8',
-    name: 'Prerelease: Stellar Crown',
-    slug: 'prerelease-stellar-crown',
-    game: 'POKEMON',
-    description: 'Be the first to play with the new set! Pre-release kit included with entry.',
-    event_date: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-    entry_fee: 4500,
-    max_capacity: 30,
-    current_registered: 30,
-    location: 'In-Store',
-    status: 'COMPLETED',
-  },
-]
-
-const gameColors: Record<string, string> = {
-  MTG: 'bg-red-500/10 text-red-500 border-red-500/20',
-  YGO: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
-  POKEMON: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
-  ONE_PIECE: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
-  NARUTO: 'bg-green-500/10 text-green-500 border-green-500/20',
-}
-
-const gameLabels: Record<string, string> = {
-  MTG: 'Magic: The Gathering',
-  YGO: 'Yu-Gi-Oh!',
-  POKEMON: 'Pokémon',
-  ONE_PIECE: 'One Piece',
-  NARUTO: 'Naruto',
-}
+import { GAME_LABELS } from '@/lib/admin/types'
 
 export default function EventsPage() {
   const [selectedGame, setSelectedGame] = useState('ALL')
   const [selectedStatus, setSelectedStatus] = useState('UPCOMING')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [events, setEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        const params = new URLSearchParams()
+        if (selectedGame !== 'ALL') params.set('game', selectedGame)
+        params.set('limit', '100')
+
+        const res = await fetch(`/api/admin/events?${params}`)
+        if (res.ok) {
+          const data = await res.json()
+          setEvents(data.data || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch events:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchEvents()
+  }, [selectedGame])
 
   const filteredEvents = useMemo(() => {
     const now = new Date()
-    return sampleEvents
+    return events
       .filter((event) => {
-        // Game filter
+        // Game filter (already filtered by API, but keep for status filtering)
         if (selectedGame !== 'ALL' && event.game !== selectedGame) return false
 
         // Status filter
@@ -155,10 +56,12 @@ export default function EventsPage() {
         if (selectedStatus === 'UPCOMING' && (isPast || event.status !== 'UPCOMING')) return false
         if (selectedStatus === 'ONGOING' && event.status !== 'ONGOING') return false
         if (selectedStatus === 'PAST' && !isPast) return false
+        // Filter out drafts from public view
+        if (event.status === 'DRAFT') return false
         return true
       })
       .sort((a, b) => new Date(a.event_date).getTime() - new Date(b.event_date).getTime())
-  }, [selectedGame, selectedStatus])
+  }, [events, selectedGame, selectedStatus])
 
   // Group events by month for list view
   const eventsByMonth = useMemo(() => {
@@ -172,7 +75,7 @@ export default function EventsPage() {
     return groups
   }, [filteredEvents])
 
-  const upcomingCount = sampleEvents.filter(
+  const upcomingCount = events.filter(
     (e) => new Date(e.event_date) > new Date() && e.status === 'UPCOMING'
   ).length
 
@@ -233,7 +136,11 @@ export default function EventsPage() {
           </div>
 
           {/* Events Display */}
-          {filteredEvents.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredEvents.length === 0 ? (
             <Card className="py-16">
               <CardContent className="text-center">
                 <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
@@ -308,11 +215,20 @@ export default function EventsPage() {
 }
 
 // List view item component
+const gameColors: Record<string, string> = {
+  MTG: 'bg-red-500/10 text-red-500 border-red-500/20',
+  YGO: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
+  POKEMON: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
+  ONE_PIECE: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
+  NARUTO: 'bg-green-500/10 text-green-500 border-green-500/20',
+  DIGIMON: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
+}
+
 function EventListItem({ event }: { event: Event }) {
   const eventDate = new Date(event.event_date)
   const isPast = eventDate < new Date()
-  const isFull = event.current_registered >= event.max_capacity
-  const spotsLeft = event.max_capacity - event.current_registered
+  const isFull = (event.current_registered || 0) >= (event.max_capacity || 0)
+  const spotsLeft = (event.max_capacity || 0) - (event.current_registered || 0)
 
   return (
     <Link href={`/events/${event.slug}`}>
@@ -336,7 +252,7 @@ function EventListItem({ event }: { event: Event }) {
                   variant="outline"
                   className={cn(gameColors[event.game] || 'bg-primary/10 text-primary')}
                 >
-                  {gameLabels[event.game] || event.game}
+                  {GAME_LABELS[event.game as keyof typeof GAME_LABELS] || event.game}
                 </Badge>
                 {event.status === 'CANCELLED' && (
                   <Badge variant="outline" className="bg-red-500/10 text-red-500">
