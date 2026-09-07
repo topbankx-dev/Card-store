@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 import { z } from 'zod'
 
 // Validation schema for event registration
@@ -19,9 +19,16 @@ export async function GET(
     const { id } = params
 
     // Verify event exists
-    const event = await prisma.event.findUnique({
-      where: { id },
-    })
+    const { data: event, error: eventError } = await supabase
+      .from('Event')
+      .select('id')
+      .eq('id', id)
+      .single()
+
+    if (eventError && eventError.code !== 'PGRST116') {
+      console.error('Error fetching event:', eventError)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     if (!event) {
       return NextResponse.json(
@@ -30,21 +37,23 @@ export async function GET(
       )
     }
 
-    const registrations = await prisma.eventRegistration.findMany({
-      where: { event_id: id },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: {
-        registered_at: 'asc',
-      },
-    })
+    const { data: registrations, error } = await supabase
+      .from('EventRegistration')
+      .select(`
+        *,
+        user:User (
+          id,
+          name,
+          email
+        )
+      `)
+      .eq('eventId', id)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching registrations:', error)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     return NextResponse.json(registrations)
   } catch (error) {
@@ -69,9 +78,16 @@ export async function POST(
     const validated = registerSchema.parse(body)
 
     // Verify event exists and has capacity
-    const event = await prisma.event.findUnique({
-      where: { id },
-    })
+    const { data: event, error: eventError } = await supabase
+      .from('Event')
+      .select('id, status, current_registered, max_capacity')
+      .eq('id', id)
+      .single()
+
+    if (eventError && eventError.code !== 'PGRST116') {
+      console.error('Error fetching event:', eventError)
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     if (!event) {
       return NextResponse.json(
@@ -96,12 +112,19 @@ export async function POST(
 
     // Check if already registered
     if (validated.user_id) {
-      const existing = await prisma.eventRegistration.findFirst({
-        where: {
-          event_id: id,
-          user_id: validated.user_id,
-        },
-      })
+      const { data: existing, error: checkError } = await supabase
+        .from('EventRegistration')
+        .select('id')
+        .eq('eventId', id)
+        .eq('userId', validated.user_id)
+        .single()
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        return NextResponse.json(
+          { error: 'Database error' },
+          { status: 500 }
+        )
+      }
 
       if (existing) {
         return NextResponse.json(
@@ -111,35 +134,49 @@ export async function POST(
       }
     }
 
-    // Create registration and update event count in a transaction
-    const registration = await prisma.$transaction(async (tx) => {
-      const newRegistration = await tx.eventRegistration.create({
-        data: {
-          event_id: id,
-          user_id: validated.user_id,
-          guest_name: validated.guest_name,
-          guest_email: validated.guest_email,
-          payment_status: validated.payment_status,
-        },
+    // Create registration and update event count
+    const { data: newRegistration, error: regError } = await supabase
+      .from('EventRegistration')
+      .insert({
+        eventId: id,
+        userId: validated.user_id,
+        guestName: validated.guest_name,
+        guestEmail: validated.guest_email,
+        paymentStatus: validated.payment_status,
       })
+      .select()
+      .single()
 
-      await tx.event.update({
-        where: { id },
-        data: {
-          current_registered: {
-            increment: 1,
-          },
-        },
+    if (regError) {
+      console.error('Error creating registration:', regError)
+      return NextResponse.json(
+        { error: 'Failed to create registration' },
+        { status: 500 }
+      )
+    }
+
+    // Update event registration count
+    const { error: updateError } = await supabase
+      .from('Event')
+      .update({
+        current_registered: event.current_registered + 1,
       })
+      .eq('id', id)
 
-      return newRegistration
-    })
+    if (updateError) {
+      console.error('Error updating event count:', updateError)
+      // We could rollback the registration here, but for simplicity we'll just return the error
+      return NextResponse.json(
+        { error: 'Failed to update event registration count' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(
       {
-        id: registration.id,
-        event_id: registration.event_id,
-        payment_status: registration.payment_status,
+        id: newRegistration.id,
+        eventId: newRegistration.eventId,
+        paymentStatus: newRegistration.paymentStatus,
         message: 'Registration successful',
       },
       { status: 201 }

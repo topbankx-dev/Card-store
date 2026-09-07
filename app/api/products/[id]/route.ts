@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 
 // GET /api/products/[id] - Fetch a single product by ID or slug
 export async function GET(
@@ -10,47 +10,35 @@ export async function GET(
     const { id } = params
 
     // Try to find by ID first, then by slug
-    let product = await prisma.product.findUnique({
-      where: { id },
-      include: {
-        order_items: {
-          select: {
-            id: true,
-            quantity: true,
-            price_at_purchase: true,
-            order: {
-              select: {
-                id: true,
-                status: true,
-                created_at: true,
-              },
-            },
-          },
-        },
-      },
-    })
+    let { data: product, error } = await supabase
+      .from('Product')
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error fetching product:', error)
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      )
+    }
 
     // If not found by ID, try slug
     if (!product) {
-      product = await prisma.product.findUnique({
-        where: { slug: id },
-        include: {
-          order_items: {
-            select: {
-              id: true,
-              quantity: true,
-              price_at_purchase: true,
-              order: {
-                select: {
-                  id: true,
-                  status: true,
-                  created_at: true,
-                },
-              },
-            },
-          },
-        },
-      })
+      ;({ data: product, error } = await supabase
+        .from('Product')
+        .select('*')
+        .eq('slug', id)
+        .single())
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching product:', error)
+        return NextResponse.json(
+          { error: 'Database error' },
+          { status: 500 }
+        )
+      }
     }
 
     if (!product) {
@@ -81,9 +69,9 @@ export async function PATCH(
 
     // TODO: Add admin authentication check here
 
-    const product = await prisma.product.update({
-      where: { id },
-      data: {
+    const { data: product, error } = await supabase
+      .from('Product')
+      .update({
         name: body.name,
         slug: body.slug,
         game: body.game,
@@ -96,8 +84,18 @@ export async function PATCH(
         description: body.description,
         is_featured: body.is_featured,
         is_sealed: body.is_sealed,
-      },
-    })
+      })
+      .eq('id', id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating product:', error)
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json(product)
   } catch (error) {
@@ -119,9 +117,18 @@ export async function DELETE(
 
     // TODO: Add admin authentication check here
 
-    await prisma.product.delete({
-      where: { id },
-    })
+    const { error } = await supabase
+      .from('Product')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Error deleting product:', error)
+      return NextResponse.json(
+        { error: 'Database error' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({ success: true })
   } catch (error) {

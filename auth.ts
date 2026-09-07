@@ -2,7 +2,7 @@ import NextAuth from 'next-auth'
 import { SupabaseAdapter } from '@auth/supabase-adapter'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { supabase } from '@/lib/supabase'
+import { supabase, supabaseConfig } from '@/lib/supabase'
 import { authConfig } from './auth.config'
 
 export type Role = 'PLAYER' | 'ADMIN'
@@ -26,8 +26,8 @@ declare module 'next-auth' {
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
   adapter: SupabaseAdapter({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    url: supabaseConfig.url!,
+    secret: supabaseConfig.serviceKey!,
   }),
   session: { strategy: 'jwt' },
   providers: [
