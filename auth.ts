@@ -1,10 +1,11 @@
 import NextAuth from 'next-auth'
-import { PrismaAdapter } from '@auth/prisma-adapter'
+import { SupabaseAdapter } from '@auth/supabase-adapter'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 import { authConfig } from './auth.config'
-import type { Role } from '@prisma/client'
+
+export type Role = 'PLAYER' | 'ADMIN'
 
 declare module 'next-auth' {
   interface Session {
@@ -24,7 +25,10 @@ declare module 'next-auth' {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
-  adapter: PrismaAdapter(prisma),
+  adapter: SupabaseAdapter({
+    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  }),
   session: { strategy: 'jwt' },
   providers: [
     Credentials({
@@ -43,11 +47,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = credentials.password as string
 
         try {
-          const user = await prisma.user.findUnique({
-            where: { email },
-          })
+          const { data: user, error } = await supabase
+            .from('User')
+            .select('*')
+            .eq('email', email)
+            .single()
 
-          if (!user) {
+          if (error || !user) {
             console.error(`User not found: ${email}`)
             return null
           }

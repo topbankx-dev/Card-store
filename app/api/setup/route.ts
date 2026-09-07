@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
-import type { Role } from '@prisma/client'
+import { supabase } from '@/lib/supabase'
 
 export async function POST(request: Request) {
   try {
@@ -23,9 +22,15 @@ export async function POST(request: Request) {
     }
 
     // Check if user exists
-    const existing = await prisma.user.findUnique({
-      where: { email },
-    })
+    const { data: existing, error: findError } = await supabase
+      .from('User')
+      .select('id')
+      .eq('email', email)
+      .single()
+
+    if (findError && findError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      return NextResponse.json({ error: 'Database error' }, { status: 500 })
+    }
 
     if (existing) {
       return NextResponse.json(
@@ -37,14 +42,24 @@ export async function POST(request: Request) {
     // Hash password and create user
     const password_hash = await bcrypt.hash(password, 12)
 
-    const user = await prisma.user.create({
-      data: {
+    const { data: user, error } = await supabase
+      .from('User')
+      .insert({
         name,
         email,
         password_hash,
-        role: role as Role,
-      },
-    })
+        role,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Setup error:', error)
+      return NextResponse.json(
+        { error: 'Failed to create user. Database may not be connected.' },
+        { status: 500 }
+      )
+    }
 
     return NextResponse.json({
       success: true,
@@ -68,12 +83,17 @@ export async function POST(request: Request) {
 // Simple GET to check status
 export async function GET() {
   try {
-    const userCount = await prisma.user.count()
+    const { count, error } = await supabase
+      .from('User')
+      .select('*', { count: 'exact', head: true })
+
+    if (error) throw error
+
     return NextResponse.json({
       status: 'connected',
-      userCount,
-      message: userCount > 0
-        ? `${userCount} user(s) in database`
+      userCount: count || 0,
+      message: (count || 0) > 0
+        ? `${count} user(s) in database`
         : 'No users yet. Use POST to create one.'
     })
   } catch (error) {
