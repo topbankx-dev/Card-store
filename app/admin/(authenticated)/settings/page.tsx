@@ -19,7 +19,7 @@ import {
   Save,
   CheckCircle2,
 } from 'lucide-react'
-import { formatPrice } from '@/lib/utils'
+import { AdminInvites } from '@/components/admin/invites/AdminInvites'
 
 // Sample settings
 const sampleSettings = {
@@ -347,6 +347,10 @@ export default function SettingsPage() {
 
         {/* Security Settings */}
         <TabsContent value="security">
+          {/* Admin Team Management */}
+          <AdminInvites />
+
+          <div className="mt-6">
           <Card>
             <CardHeader>
               <CardTitle>Security Settings</CardTitle>
@@ -382,6 +386,7 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

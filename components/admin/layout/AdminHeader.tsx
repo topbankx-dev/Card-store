@@ -19,13 +19,14 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {
   Bell,
-  Search,
   Menu,
   LogOut,
   User,
   Settings,
   ChevronDown,
 } from 'lucide-react'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { GlobalSearch } from '@/components/admin/search/GlobalSearch'
 
 interface AdminHeaderProps {
   onMenuClick?: () => void
@@ -80,13 +81,12 @@ export function AdminHeader({ onMenuClick, showMobileMenu }: AdminHeaderProps) {
         {/* Right side */}
         <div className="flex items-center gap-2">
           {/* Search (desktop) */}
-          <div className="hidden md:block relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search..."
-              className="pl-9 h-9"
-            />
+          <div className="hidden md:block">
+            <GlobalSearch />
           </div>
+
+          {/* Theme toggle */}
+          <ThemeToggle />
 
           {/* Notifications */}
           <Button variant="ghost" size="icon" className="relative">

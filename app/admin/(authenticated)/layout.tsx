@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { AdminSidebar, AdminMobileSidebar } from '@/components/admin/layout'
 import { AdminHeader } from '@/components/admin/layout'
+import { AdminToastProvider } from '@/components/admin/ui/use-admin-toast'
 import { cn } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
 
@@ -52,35 +53,37 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <AdminSidebar
+    <AdminToastProvider>
+      <div className="min-h-screen bg-background">
+        {/* Desktop Sidebar */}
+        <div className="hidden md:block">
+          <AdminSidebar
+            collapsed={sidebarCollapsed}
+            onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
+        </div>
+
+        {/* Mobile Sidebar */}
+        <AdminMobileSidebar
+          isOpen={mobileMenuOpen}
+          onClose={() => setMobileMenuOpen(false)}
           collapsed={sidebarCollapsed}
           onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
-      </div>
 
-      {/* Mobile Sidebar */}
-      <AdminMobileSidebar
-        isOpen={mobileMenuOpen}
-        onClose={() => setMobileMenuOpen(false)}
-        collapsed={sidebarCollapsed}
-        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
-
-      {/* Main Content */}
-      <div
-        className={cn(
-          'transition-all duration-300',
-          sidebarCollapsed ? 'md:pl-16' : 'md:pl-64'
-        )}
-      >
-        <AdminHeader
-          onMenuClick={() => setMobileMenuOpen(true)}
-        />
-        <main className="p-4 md:p-6 lg:p-8">{children}</main>
+        {/* Main Content */}
+        <div
+          className={cn(
+            'transition-all duration-300',
+            sidebarCollapsed ? 'md:pl-16' : 'md:pl-64'
+          )}
+        >
+          <AdminHeader
+            onMenuClick={() => setMobileMenuOpen(true)}
+          />
+          <main className="p-4 md:p-6 lg:p-8">{children}</main>
+        </div>
       </div>
-    </div>
+    </AdminToastProvider>
   )
 }
