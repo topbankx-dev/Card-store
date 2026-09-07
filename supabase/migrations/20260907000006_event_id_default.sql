@@ -1,17 +1,15 @@
--- Fix Event.id to auto-generate UUID as text
--- This is needed because the API doesn't send an id, expecting the database to generate it
+-- Fix Event.id to auto-generate UUID
+-- The id columns are UUID type, so we just need gen_random_uuid() without text cast
 
 -- Enable pgcrypto if not already enabled
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- Set default for Event.id
-ALTER TABLE "Event" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()::text;
-
--- Also fix all other tables that might have the same issue
-ALTER TABLE "EventRegistration" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()::text;
-ALTER TABLE "TicketTier" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()::text;
-ALTER TABLE "EventWaitlist" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()::text;
-ALTER TABLE "EventReminder" ALTER COLUMN "id" SET DEFAULT gen_random_uuid()::text;
+-- Set default for all id columns (they are UUID type)
+ALTER TABLE "Event" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "EventRegistration" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "TicketTier" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "EventWaitlist" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
+ALTER TABLE "EventReminder" ALTER COLUMN "id" SET DEFAULT gen_random_uuid();
 
 -- Verify defaults are set
 SELECT table_name, column_name, column_default
