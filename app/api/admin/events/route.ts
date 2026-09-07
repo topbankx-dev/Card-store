@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0')
 
     let query = supabase
-      .from('events')
+      .from('Event')
       .select('*', { count: 'exact' })
       .order('event_date', { ascending: false })
       .range(offset, offset + limit - 1)
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
     if (events && events.length > 0) {
       const eventIds = events.map(e => e.id)
       const { data: tiers } = await supabase
-        .from('ticket_tiers')
+        .from('TicketTier')
         .select('*')
         .in('event_id', eventIds)
         .order('created_at', { ascending: true })
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
 
     // Check for duplicate slug
     const { data: existingSlug } = await supabase
-      .from('events')
+      .from('Event')
       .select('id')
       .eq('slug', eventData.slug)
       .single()
@@ -102,11 +102,28 @@ export async function POST(request: NextRequest) {
     }
 
     // Prepare event data for insertion
-    const { ticket_tiers, ...eventInsert } = eventData
+    // Flatten trust_policy and remove nested objects that aren't columns
+    const { ticket_tiers, trust_policy, ...eventInsert } = eventData
+    if (trust_policy) {
+      Object.assign(eventInsert, {
+        refund_policy: trust_policy.refund_policy,
+        refund_enabled: trust_policy.refund_enabled,
+        refund_deadline_hours: trust_policy.refund_deadline_hours,
+        code_of_conduct: trust_policy.code_of_conduct,
+        code_of_conduct_enabled: trust_policy.code_of_conduct_enabled,
+        cancellation_policy: trust_policy.cancellation_policy,
+        cancellation_consent_required: trust_policy.cancellation_consent_required,
+        media_release: trust_policy.media_release,
+        attendee_visibility: trust_policy.attendee_visibility,
+        auto_reminder_1_week: trust_policy.auto_reminder_1_week,
+        auto_reminder_1_day: trust_policy.auto_reminder_1_day,
+        auto_reminder_1_hour: trust_policy.auto_reminder_1_hour,
+      })
+    }
 
     // Insert event
     const { data: newEvent, error: eventError } = await supabase
-      .from('events')
+      .from('Event')
       .insert([eventInsert])
       .select()
       .single()
@@ -147,7 +164,7 @@ export async function POST(request: NextRequest) {
         })
 
         const { error: recurringError } = await supabase
-          .from('events')
+          .from('Event')
           .insert(recurringEvents)
 
         if (recurringError) {
@@ -166,7 +183,7 @@ export async function POST(request: NextRequest) {
       }))
 
       const { error: tiersError } = await supabase
-        .from('ticket_tiers')
+        .from('TicketTier')
         .insert(tiersToInsert)
 
       if (tiersError) {
@@ -175,7 +192,7 @@ export async function POST(request: NextRequest) {
       } else {
         // Fetch and attach tiers to response
         const { data: createdTiers } = await supabase
-          .from('ticket_tiers')
+          .from('TicketTier')
           .select('*')
           .eq('event_id', newEvent.id)
           .order('created_at', { ascending: true })

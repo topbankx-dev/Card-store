@@ -13,7 +13,7 @@ export async function GET(
     const supabase = createServerClient()
 
     const { data: event, error } = await supabase
-      .from('events')
+      .from('Event')
       .select('*')
       .eq('id', id)
       .single()
@@ -28,7 +28,7 @@ export async function GET(
 
     // Fetch ticket tiers
     const { data: tiers } = await supabase
-      .from('ticket_tiers')
+      .from('TicketTier')
       .select('*')
       .eq('event_id', id)
       .order('created_at', { ascending: true })
@@ -65,7 +65,7 @@ export async function PATCH(
 
     // Check if event exists
     const { data: existing } = await supabase
-      .from('events')
+      .from('Event')
       .select('id')
       .eq('id', id)
       .single()
@@ -77,7 +77,7 @@ export async function PATCH(
     // If slug is being updated, check for conflicts
     if (eventData.slug) {
       const { data: slugConflict } = await supabase
-        .from('events')
+        .from('Event')
         .select('id')
         .eq('slug', eventData.slug)
         .neq('id', id)
@@ -89,11 +89,28 @@ export async function PATCH(
     }
 
     // Prepare update data
-    const { ticket_tiers, ...eventUpdate } = eventData
+    // Flatten trust_policy and remove nested objects that aren't columns
+    const { ticket_tiers, trust_policy, ...eventUpdate } = eventData
+    if (trust_policy) {
+      Object.assign(eventUpdate, {
+        refund_policy: trust_policy.refund_policy,
+        refund_enabled: trust_policy.refund_enabled,
+        refund_deadline_hours: trust_policy.refund_deadline_hours,
+        code_of_conduct: trust_policy.code_of_conduct,
+        code_of_conduct_enabled: trust_policy.code_of_conduct_enabled,
+        cancellation_policy: trust_policy.cancellation_policy,
+        cancellation_consent_required: trust_policy.cancellation_consent_required,
+        media_release: trust_policy.media_release,
+        attendee_visibility: trust_policy.attendee_visibility,
+        auto_reminder_1_week: trust_policy.auto_reminder_1_week,
+        auto_reminder_1_day: trust_policy.auto_reminder_1_day,
+        auto_reminder_1_hour: trust_policy.auto_reminder_1_hour,
+      })
+    }
 
     // Update event
     const { data: updatedEvent, error: updateError } = await supabase
-      .from('events')
+      .from('Event')
       .update({ ...eventUpdate, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
@@ -108,7 +125,7 @@ export async function PATCH(
     if (ticket_tiers !== undefined) {
       // Delete existing tiers
       await supabase
-        .from('ticket_tiers')
+        .from('TicketTier')
         .delete()
         .eq('event_id', id)
 
@@ -121,13 +138,13 @@ export async function PATCH(
         }))
 
         await supabase
-          .from('ticket_tiers')
+          .from('TicketTier')
           .insert(tiersToInsert)
       }
 
       // Fetch updated tiers
       const { data: updatedTiers } = await supabase
-        .from('ticket_tiers')
+        .from('TicketTier')
         .select('*')
         .eq('event_id', id)
         .order('created_at', { ascending: true })
@@ -153,7 +170,7 @@ export async function DELETE(
 
     // Check if event exists
     const { data: existing } = await supabase
-      .from('events')
+      .from('Event')
       .select('id, name')
       .eq('id', id)
       .single()
@@ -164,19 +181,19 @@ export async function DELETE(
 
     // Delete ticket tiers first (foreign key constraint)
     await supabase
-      .from('ticket_tiers')
+      .from('TicketTier')
       .delete()
       .eq('event_id', id)
 
     // Delete registrations if they exist
     await supabase
-      .from('event_registrations')
+      .from('EventRegistration')
       .delete()
       .eq('event_id', id)
 
     // Delete the event
     const { error: deleteError } = await supabase
-      .from('events')
+      .from('Event')
       .delete()
       .eq('id', id)
 

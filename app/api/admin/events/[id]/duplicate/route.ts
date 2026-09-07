@@ -14,7 +14,7 @@ export async function POST(
 
     // Fetch original event
     const { data: original, error: fetchError } = await supabase
-      .from('events')
+      .from('Event')
       .select('*')
       .eq('id', id)
       .single()
@@ -29,7 +29,7 @@ export async function POST(
 
     // Fetch ticket tiers
     const { data: tiers } = await supabase
-      .from('ticket_tiers')
+      .from('TicketTier')
       .select('*')
       .eq('event_id', id)
 
@@ -38,7 +38,7 @@ export async function POST(
 
     // Check for slug conflicts and make unique
     const { data: slugConflict } = await supabase
-      .from('events')
+      .from('Event')
       .select('id')
       .eq('slug', newSlug)
       .single()
@@ -89,7 +89,7 @@ export async function POST(
 
     // Insert duplicate
     const { data: newEvent, error: insertError } = await supabase
-      .from('events')
+      .from('Event')
       .insert([duplicateEvent])
       .select()
       .single()
@@ -112,12 +112,12 @@ export async function POST(
       }))
 
       await supabase
-        .from('ticket_tiers')
+        .from('TicketTier')
         .insert(duplicatedTiers)
 
       // Fetch the tiers we just created
       const { data: createdTiers } = await supabase
-        .from('ticket_tiers')
+        .from('TicketTier')
         .select('*')
         .eq('event_id', newEvent.id)
         .order('created_at', { ascending: true })

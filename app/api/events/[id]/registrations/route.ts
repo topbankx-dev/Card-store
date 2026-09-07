@@ -50,7 +50,7 @@ export async function GET(
           email
         )
       `)
-      .eq('eventId', id)
+      .eq('event_id', id)
       .order('created_at', { ascending: true })
 
     if (error) {
@@ -118,8 +118,8 @@ export async function POST(
       const { data: existing, error: checkError } = await supabase
         .from('EventRegistration')
         .select('id')
-        .eq('eventId', id)
-        .eq('userId', validated.user_id)
+        .eq('event_id', id)
+        .eq('user_id', validated.user_id)
         .single()
 
       if (checkError && checkError.code !== 'PGRST116') {
@@ -141,11 +141,11 @@ export async function POST(
     const { data: newRegistration, error: regError } = await adminDb
       .from('EventRegistration')
       .insert({
-        eventId: id,
-        userId: validated.user_id,
-        guestName: validated.guest_name,
-        guestEmail: validated.guest_email,
-        paymentStatus: validated.payment_status,
+        event_id: id,
+        user_id: validated.user_id,
+        customer_name: validated.guest_name,
+        customer_email: validated.guest_email,
+        payment_status: validated.payment_status,
       })
       .select()
       .single()
@@ -178,8 +178,8 @@ export async function POST(
     return NextResponse.json(
       {
         id: newRegistration.id,
-        eventId: newRegistration.eventId,
-        paymentStatus: newRegistration.paymentStatus,
+        event_id: newRegistration.event_id,
+        payment_status: newRegistration.payment_status,
         message: 'Registration successful',
       },
       { status: 201 }
