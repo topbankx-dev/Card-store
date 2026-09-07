@@ -2,8 +2,11 @@ import NextAuth from 'next-auth'
 import { SupabaseAdapter } from '@auth/supabase-adapter'
 import Credentials from 'next-auth/providers/credentials'
 import bcrypt from 'bcryptjs'
-import { supabase, supabaseConfig } from '@/lib/supabase'
+import { createServerClient, supabaseConfig } from '@/lib/supabase'
 import { authConfig } from './auth.config'
+
+// Service-role client for auth (bypasses RLS to read password hashes securely)
+const adminDb = createServerClient()
 
 export type Role = 'PLAYER' | 'ADMIN'
 
@@ -47,7 +50,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const password = credentials.password as string
 
         try {
-          const { data: user, error } = await supabase
+          const { data: user, error } = await adminDb
             .from('User')
             .select('*')
             .eq('email', email)
