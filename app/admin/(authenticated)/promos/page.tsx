@@ -83,10 +83,8 @@ const samplePromos: PromoCode[] = [
     code: 'FLAT500',
     discount_type: 'FIXED',
     discount_value: 500,
-    max_uses: null,
     used_count: 156,
     min_order_amount: 2000,
-    expires_at: null,
     is_active: true,
     created_at: '2024-01-10T10:00:00Z',
   },
@@ -150,10 +148,10 @@ export default function PromosPage() {
       code: formData.code.toUpperCase(),
       discount_type: formData.discount_type,
       discount_value: formData.discount_value,
-      max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
+      max_uses: formData.max_uses ? parseInt(formData.max_uses) : undefined,
       used_count: 0,
       min_order_amount: formData.min_order_amount,
-      expires_at: formData.expires_at || null,
+      expires_at: formData.expires_at || undefined,
       is_active: formData.is_active,
       created_at: new Date().toISOString(),
     }
@@ -318,7 +316,7 @@ export default function PromosPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {promo.min_order_amount > 0 ? formatPrice(promo.min_order_amount) : '-'}
+                      {promo.min_order_amount && promo.min_order_amount > 0 ? formatPrice(promo.min_order_amount) : '-'}
                     </TableCell>
                     <TableCell>
                       {promo.expires_at ? (

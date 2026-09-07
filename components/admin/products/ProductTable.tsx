@@ -134,9 +134,6 @@ export function ProductTable({
               <TableHead className="w-12">
                 <Checkbox
                   checked={allSelected}
-                  ref={(el) => {
-                    if (el) el.checked = allSelected
-                  }}
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>

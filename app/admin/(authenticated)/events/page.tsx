@@ -50,6 +50,7 @@ const sampleEvents: Event[] = [
     location: 'Rapid Strike Gaming Lounge',
     status: 'UPCOMING',
     registration_count: 12,
+    created_at: new Date().toISOString(),
   },
   {
     id: 'evt_456',
@@ -63,6 +64,7 @@ const sampleEvents: Event[] = [
     location: 'Rapid Strike Gaming Lounge',
     status: 'UPCOMING',
     registration_count: 28,
+    created_at: new Date().toISOString(),
   },
   {
     id: 'evt_789',
@@ -76,6 +78,7 @@ const sampleEvents: Event[] = [
     location: 'Rapid Strike Gaming Lounge',
     status: 'UPCOMING',
     registration_count: 8,
+    created_at: new Date().toISOString(),
   },
   {
     id: 'evt_012',
@@ -89,6 +92,7 @@ const sampleEvents: Event[] = [
     location: 'Rapid Strike Gaming Lounge',
     status: 'COMPLETED',
     registration_count: 14,
+    created_at: new Date().toISOString(),
   },
 ]
 
@@ -163,7 +167,7 @@ export default function EventsPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {upcomingEvents.map((event) => {
-              const capacityPercent = event.max_capacity
+              const capacityPercent = event.max_capacity && event.registration_count
                 ? (event.registration_count / event.max_capacity) * 100
                 : 0
               const isFull = capacityPercent >= 100

@@ -250,7 +250,7 @@ export default function OrderDetailPage() {
                   {statusTimeline.map((status, index) => {
                     const isCompleted = index <= currentStep
                     const isCurrent = index === currentStep
-                    const Icon = statusConfig[status]?.icon || Clock
+                    const Icon = statusConfig[status as OrderStatus]?.icon || Clock
 
                     return (
                       <div key={status} className="flex items-center">
@@ -269,7 +269,7 @@ export default function OrderDetailPage() {
                             'text-xs mt-2 font-medium',
                             isCurrent ? 'text-primary' : 'text-muted-foreground'
                           )}>
-                            {ORDER_STATUS_LABELS[status]}
+                            {ORDER_STATUS_LABELS[status as OrderStatus]}
                           </span>
                         </div>
                         {index < statusTimeline.length - 1 && (
