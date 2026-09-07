@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
     // Validate with Zod
     const result = EventSchema.safeParse(body)
     if (!result.success) {
+      console.error('Validation failed:', JSON.stringify(result.error.flatten(), null, 2))
       return NextResponse.json({
         error: 'Validation failed',
         details: result.error.flatten()
@@ -91,12 +92,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Check for duplicate slug
-    const { data: existingSlug } = await supabase
+    const { data: existingSlug, error: slugError } = await supabase
       .from('Event')
       .select('id')
       .eq('slug', eventData.slug)
-      .single()
+      .maybeSingle()
 
+    if (slugError) {
+      console.error('Error checking slug:', slugError)
+    }
     if (existingSlug) {
       eventData.slug = `${eventData.slug}-${Date.now()}`
     }
@@ -121,6 +125,19 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // Sanitize: convert empty strings to null for optional text fields
+    const fieldsToNullify = [
+      'description', 'slug', 'virtual_link', 'format', 'subformat',
+      'prize_pool', 'prize_description', 'image_url', 'recurring_pattern',
+      'recurring_end_date', 'end_date', 'registration_deadline',
+      'code_of_conduct', 'cancellation_policy', 'refund_policy'
+    ]
+    for (const field of fieldsToNullify) {
+      if ((eventInsert as Record<string, unknown>)[field] === '') {
+        (eventInsert as Record<string, unknown>)[field] = null
+      }
+    }
+
     // Insert event
     const { data: newEvent, error: eventError } = await supabase
       .from('Event')
@@ -129,8 +146,12 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (eventError) {
-      console.error('Error creating event:', eventError)
-      return NextResponse.json({ error: 'Failed to create event' }, { status: 500 })
+      console.error('Supabase insert error:', JSON.stringify(eventError, null, 2))
+      console.error('Event data being inserted:', JSON.stringify(eventInsert, null, 2))
+      return NextResponse.json({
+        error: 'Failed to create event',
+        details: eventError.message
+      }, { status: 500 })
     }
 
     // Handle recurring events - create multiple events
@@ -204,6 +225,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ data: newEvent }, { status: 201 })
   } catch (error) {
     console.error('Error in POST /api/admin/events:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : String(error)
+    }, { status: 500 })
   }
 }

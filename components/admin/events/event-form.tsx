@@ -312,6 +312,7 @@ export function EventForm({ initialData, eventId, mode }: EventFormProps) {
         router.push('/admin/events')
       }
     } catch (error) {
+      console.error('Save error:', error)
       toast.error(error instanceof Error ? error.message : 'Failed to save event')
     } finally {
       setIsSubmitting(false)
