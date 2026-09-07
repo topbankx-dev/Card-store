@@ -6,7 +6,8 @@
       "Bash(netstat -ano)",
       "Bash(findstr :3001)",
       "Bash(taskkill /PID 17284 /F)",
-      "Bash(cmd //c \"taskkill /PID 17284 /F\")"
+      "Bash(cmd //c \"taskkill /PID 17284 /F\")",
+      "Bash(npx shadcn@latest add table dialog select tabs avatar tooltip textarea switch progress --yes)"
     ]
   }
 }
