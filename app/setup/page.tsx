@@ -1,6 +1,5 @@
-import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase'
 import { SetupForm } from './setup-form'
-import type { Role } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,7 +9,11 @@ export default async function SetupPage() {
   let userCount = 0
 
   try {
-    userCount = await prisma.user.count()
+    const { count } = await supabase
+      .from('User')
+      .select('*', { count: 'exact', head: true })
+
+    userCount = count || 0
     dbStatus = 'connected'
   } catch {
     dbStatus = 'disconnected'
