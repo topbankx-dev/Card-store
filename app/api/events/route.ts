@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabase } from '@/lib/supabase'
 import { z } from 'zod'
 
+// Convert datetime-local format (YYYY-MM-DDTHH:mm) to ISO 8601 (YYYY-MM-DDTHH:mm:00Z)
+function normalizeTimestamp(ts: string | null | undefined): string | null {
+  if (!ts) return null
+  if (ts.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) return ts
+  if (ts.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
+    return ts + ':00'
+  }
+  return ts
+}
+
 // Use service-role client for admin operations (bypasses RLS)
 const adminDb = createServerClient()
 
@@ -108,8 +118,8 @@ export async function POST(request: NextRequest) {
         slug,
         game: body.game,
         description: body.description,
-        event_date: body.event_date,
-        end_date: body.end_date,
+        event_date: normalizeTimestamp(body.event_date),
+        end_date: normalizeTimestamp(body.end_date),
         entry_fee: body.entry_fee,
         max_capacity: body.max_capacity,
         location: body.location || 'In-Store',

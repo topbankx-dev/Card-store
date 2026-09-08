@@ -68,6 +68,18 @@ export async function GET(request: NextRequest) {
   }
 }
 
+// Convert datetime-local format (YYYY-MM-DDTHH:mm) to ISO 8601 (YYYY-MM-DDTHH:mm:00Z)
+function normalizeTimestamp(ts: string | null | undefined): string | null {
+  if (!ts) return null
+  // If already has seconds and Z suffix, return as-is
+  if (ts.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) return ts
+  // If datetime-local format (no seconds), add :00
+  if (ts.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
+    return ts + ':00'
+  }
+  return ts
+}
+
 // POST /api/admin/events - Create new event
 export async function POST(request: NextRequest) {
   try {
@@ -86,28 +98,43 @@ export async function POST(request: NextRequest) {
     const eventData = result.data
     const supabase = createServerClient()
 
+    // Normalize timestamps to include seconds for PostgreSQL TIMESTAMP WITH TIME ZONE
+    const normalizedEventData = {
+      ...eventData,
+      event_date: normalizeTimestamp(eventData.event_date),
+      end_date: eventData.end_date ? normalizeTimestamp(eventData.end_date) : null,
+      registration_deadline: eventData.registration_deadline
+        ? normalizeTimestamp(eventData.registration_deadline)
+        : null,
+    }
+
+    // event_date is required
+    if (!normalizedEventData.event_date) {
+      return NextResponse.json({ error: 'Event date is required' }, { status: 400 })
+    }
+
     // Generate slug if not provided
-    if (!eventData.slug) {
-      eventData.slug = generateSlug(eventData.name)
+    if (!normalizedEventData.slug) {
+      normalizedEventData.slug = generateSlug(normalizedEventData.name)
     }
 
     // Check for duplicate slug
     const { data: existingSlug, error: slugError } = await supabase
       .from('Event')
       .select('id')
-      .eq('slug', eventData.slug)
+      .eq('slug', normalizedEventData.slug)
       .maybeSingle()
 
     if (slugError) {
       console.error('Error checking slug:', slugError)
     }
     if (existingSlug) {
-      eventData.slug = `${eventData.slug}-${Date.now()}`
+      normalizedEventData.slug = `${normalizedEventData.slug}-${Date.now()}`
     }
 
     // Prepare event data for insertion
     // Flatten trust_policy and remove nested objects that aren't columns
-    const { ticket_tiers, trust_policy, ...eventInsert } = eventData
+    const { ticket_tiers, trust_policy, ...eventInsert } = normalizedEventData
     if (trust_policy) {
       Object.assign(eventInsert, {
         refund_policy: trust_policy.refund_policy,
@@ -155,12 +182,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle recurring events - create multiple events
-    if (eventData.is_recurring && eventData.recurring_pattern) {
+    if (normalizedEventData.is_recurring && normalizedEventData.recurring_pattern) {
       const recurringDates = generateRecurringDates(
-        eventData.event_date,
-        eventData.recurring_pattern,
-        eventData.recurring_end_date,
-        eventData.recurring_count
+        normalizedEventData.event_date,
+        normalizedEventData.recurring_pattern,
+        normalizedEventData.recurring_end_date,
+        normalizedEventData.recurring_count
       )
 
       // Skip the first date (already created as the main event)
@@ -168,8 +195,8 @@ export async function POST(request: NextRequest) {
 
       if (futureDates.length > 0) {
         const recurringEvents = futureDates.map(date => {
-          const duration = eventData.end_date && eventData.event_date
-            ? new Date(eventData.end_date).getTime() - new Date(eventData.event_date).getTime()
+          const duration = normalizedEventData.end_date && normalizedEventData.event_date
+            ? new Date(normalizedEventData.end_date).getTime() - new Date(normalizedEventData.event_date).getTime()
             : 3 * 60 * 60 * 1000 // Default 3 hours
 
           const endDate = new Date(new Date(date).getTime() + duration).toISOString()
@@ -180,7 +207,7 @@ export async function POST(request: NextRequest) {
             end_date: endDate,
             status: 'UPCOMING' as const,
             // Generate unique slug for recurring events
-            slug: `${eventData.slug}-${new Date(date).toISOString().split('T')[0]}`,
+            slug: `${normalizedEventData.slug}-${new Date(date).toISOString().split('T')[0]}`,
           }
         })
 

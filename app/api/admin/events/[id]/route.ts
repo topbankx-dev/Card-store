@@ -3,6 +3,16 @@ import { createServerClient } from '@/lib/supabase'
 import { EventSchema } from '@/lib/validations/event'
 import { generateSlug } from '@/lib/validations/event'
 
+// Convert datetime-local format (YYYY-MM-DDTHH:mm) to ISO 8601 (YYYY-MM-DDTHH:mm:00Z)
+function normalizeTimestamp(ts: string | null | undefined): string | null {
+  if (!ts) return null
+  if (ts.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/)) return ts
+  if (ts.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
+    return ts + ':00'
+  }
+  return ts
+}
+
 // GET /api/admin/events/[id] - Get single event
 export async function GET(
   request: NextRequest,
@@ -63,6 +73,16 @@ export async function PATCH(
     const eventData = result.data
     const supabase = createServerClient()
 
+    // Normalize timestamps to include seconds for PostgreSQL TIMESTAMP WITH TIME ZONE
+    const normalizedEventData = {
+      ...eventData,
+      event_date: eventData.event_date ? normalizeTimestamp(eventData.event_date) : undefined,
+      end_date: eventData.end_date ? normalizeTimestamp(eventData.end_date) : undefined,
+      registration_deadline: eventData.registration_deadline
+        ? normalizeTimestamp(eventData.registration_deadline)
+        : undefined,
+    }
+
     // Check if event exists
     const { data: existing } = await supabase
       .from('Event')
@@ -75,22 +95,22 @@ export async function PATCH(
     }
 
     // If slug is being updated, check for conflicts
-    if (eventData.slug) {
+    if (normalizedEventData.slug) {
       const { data: slugConflict } = await supabase
         .from('Event')
         .select('id')
-        .eq('slug', eventData.slug)
+        .eq('slug', normalizedEventData.slug)
         .neq('id', id)
         .single()
 
       if (slugConflict) {
-        eventData.slug = `${eventData.slug}-${Date.now()}`
+        normalizedEventData.slug = `${normalizedEventData.slug}-${Date.now()}`
       }
     }
 
     // Prepare update data
     // Flatten trust_policy and remove nested objects that aren't columns
-    const { ticket_tiers, trust_policy, ...eventUpdate } = eventData
+    const { ticket_tiers, trust_policy, ...eventUpdate } = normalizedEventData
     if (trust_policy) {
       Object.assign(eventUpdate, {
         refund_policy: trust_policy.refund_policy,
