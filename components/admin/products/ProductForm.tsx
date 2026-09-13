@@ -14,10 +14,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { GAME_LABELS, RARITY_LABELS, CONDITION_LABELS, type Product } from '@/lib/admin/types'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { GAME_LABELS, RARITY_LABELS, CONDITION_LABELS, type Product, type Rarity } from '@/lib/admin/types'
 import { cn } from '@/lib/utils'
-import { Loader2, Upload, X, ImageIcon } from 'lucide-react'
+import { Loader2, Sparkles, Search, Check, Wand2 } from 'lucide-react'
+import { ImageUpload } from '@/components/admin/image-upload'
+import { toast } from '@/components/ui/sonner'
 
 interface ProductFormProps {
   product?: Partial<Product>
@@ -25,10 +27,25 @@ interface ProductFormProps {
   isEditing?: boolean
 }
 
+interface TcgSearchResult {
+  name: string
+  game: string
+  set?: string
+  rarity?: string
+  price?: number
+  image_url?: string
+  description?: string
+}
+
 export function ProductForm({ product, onSubmit, isEditing = false }: ProductFormProps) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  // TCG Lookup state
+  const [tcgQuery, setTcgQuery] = useState('')
+  const [tcgSearching, setTcgSearching] = useState(false)
+  const [tcgResults, setTcgResults] = useState<TcgSearchResult[]>([])
 
   const [formData, setFormData] = useState<Partial<Product>>({
     name: product?.name || '',
@@ -38,7 +55,7 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
     rarity: product?.rarity || 'COMMON',
     condition: product?.condition || 'NEAR_MINT',
     price: product?.price || 0,
-    stock_quantity: product?.stock_quantity || 0,
+    stock_quantity: product?.stock_quantity ?? 1,
     image_url: product?.image_url || '',
     description: product?.description || '',
     is_featured: product?.is_featured || false,
@@ -46,9 +63,9 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
   })
 
   const handleChange = (field: keyof Product, value: unknown) => {
-    setFormData({ ...formData, [field]: value })
+    setFormData((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) {
-      setErrors({ ...errors, [field]: '' })
+      setErrors((prev) => ({ ...prev, [field]: '' }))
     }
 
     // Auto-generate slug from name
@@ -61,14 +78,78 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
     }
   }
 
+  // TCG API Lookup
+  const handleTcgSearch = async () => {
+    if (!tcgQuery.trim()) {
+      toast.error('Please enter a card name or set code')
+      return
+    }
+
+    setTcgSearching(true)
+    setTcgResults([])
+    try {
+      const res = await fetch(`/api/admin/tcg-lookup?q=${encodeURIComponent(tcgQuery)}&game=${formData.game || 'YGO'}`)
+      if (!res.ok) throw new Error('Search failed')
+      const data = await res.json()
+      setTcgResults(data.results || [])
+      if (!data.results || data.results.length === 0) {
+        toast.info('No matching cards found via TCG API')
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error('Failed to lookup card details')
+    } finally {
+      setTcgSearching(false)
+    }
+  }
+
+  const normalizeRarity = (rarityStr?: string): Rarity => {
+    if (!rarityStr) return 'COMMON'
+    const normalized = rarityStr.toUpperCase().replace(/\s+/g, '_')
+    const validRarities: Rarity[] = ['COMMON', 'UNCOMMON', 'RARE', 'SUPER_RARE', 'ULTRA_RARE', 'SECRET_RARE', 'MYTHIC', 'PROMO']
+    if (validRarities.includes(normalized as Rarity)) {
+      return normalized as Rarity
+    }
+    if (normalized.includes('SUPER')) return 'SUPER_RARE'
+    if (normalized.includes('ULTRA')) return 'ULTRA_RARE'
+    if (normalized.includes('SECRET')) return 'SECRET_RARE'
+    if (normalized.includes('MYTHIC')) return 'MYTHIC'
+    if (normalized.includes('PROMO')) return 'PROMO'
+    if (normalized.includes('UNCOMMON')) return 'UNCOMMON'
+    if (normalized.includes('RARE')) return 'RARE'
+    return 'COMMON'
+  }
+
+  const applyTcgCard = (card: TcgSearchResult) => {
+    const slug = card.name
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/[^a-z0-9-]/g, '')
+
+    // Approximate USD to JMD conversion for initial baseline if needed (e.g. 155 JMD per USD)
+    // Or keep USD numeric depending on currency mode
+    const priceJMD = card.price ? Math.round(card.price * 155) : 500
+
+    setFormData((prev) => ({
+      ...prev,
+      name: card.name,
+      slug,
+      set: card.set || prev.set || '',
+      rarity: normalizeRarity(card.rarity || prev.rarity),
+      image_url: card.image_url || prev.image_url || '',
+      description: card.description || prev.description || '',
+      price: priceJMD,
+    }))
+
+    setTcgResults([])
+    toast.success(`Auto-filled details for "${card.name}"!`)
+  }
+
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {}
 
     if (!formData.name?.trim()) {
       newErrors.name = 'Product name is required'
-    }
-    if (!formData.slug?.trim()) {
-      newErrors.slug = 'Slug is required'
     }
     if (!formData.game) {
       newErrors.game = 'Game is required'
@@ -94,7 +175,6 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
       if (onSubmit) {
         await onSubmit(formData)
       } else {
-        // Default behavior - call API
         const url = isEditing && product?.id
           ? `/api/admin/products/${product.id}`
           : '/api/admin/products'
@@ -108,15 +188,19 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
         })
 
         if (!response.ok) {
-          throw new Error('Failed to save product')
+          const errData = await response.json().catch(() => ({}))
+          throw new Error(errData.error || 'Failed to save product')
         }
 
+        toast.success(isEditing ? 'Product updated successfully' : 'Product created successfully')
         router.push('/admin/products')
         router.refresh()
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Error saving product:', error)
-      setErrors({ submit: 'Failed to save product. Please try again.' })
+      const msg = (error as Error)?.message || 'Failed to save product. Please try again.'
+      setErrors({ submit: msg })
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -128,6 +212,92 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
         <div className="p-4 rounded-lg bg-destructive/10 text-destructive text-sm">
           {errors.submit}
         </div>
+      )}
+
+      {/* TCG Auto-Fill Bar */}
+      {!isEditing && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Wand2 className="w-5 h-5 text-primary" />
+              TCG Card Auto-Fill (YGOPRODeck / Scryfall / Pokémon API)
+            </CardTitle>
+            <CardDescription>
+              Search by card name to automatically import the card image, rarity, set name, and description.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="e.g. Ash Blossom, Blue-Eyes, Black Lotus, Charizard ex..."
+                value={tcgQuery}
+                onChange={(e) => setTcgQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleTcgSearch()
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                onClick={handleTcgSearch}
+                disabled={tcgSearching}
+                className="shrink-0"
+              >
+                {tcgSearching ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Search className="w-4 h-4 mr-2" />
+                )}
+                Search TCG API
+              </Button>
+            </div>
+
+            {/* Live Card Results Carousel / List */}
+            {tcgResults.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                {tcgResults.map((card, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => applyTcgCard(card)}
+                    className="border rounded-lg p-2.5 bg-background hover:border-primary cursor-pointer transition-all hover:shadow-md flex flex-col justify-between text-left group"
+                  >
+                    <div>
+                      {card.image_url && (
+                        <div className="w-full h-32 relative mb-2 bg-muted rounded overflow-hidden flex items-center justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={card.image_url}
+                            alt={card.name}
+                            className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                      )}
+                      <p className="font-semibold text-xs line-clamp-1">{card.name}</p>
+                      {card.set && (
+                        <p className="text-[11px] text-muted-foreground line-clamp-1">{card.set}</p>
+                      )}
+                      {card.rarity && (
+                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">
+                          {card.rarity}
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-2 text-xs h-7 group-hover:bg-primary group-hover:text-primary-foreground"
+                    >
+                      <Check className="w-3 h-3 mr-1" /> Use Card
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -169,66 +339,33 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
                 {errors.slug && (
                   <p className="text-sm text-destructive">{errors.slug}</p>
                 )}
-                <p className="text-xs text-muted-foreground">
-                  URL-friendly version of the product name
-                </p>
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
                   id="description"
-                  value={formData.description}
+                  value={formData.description || ''}
                   onChange={(e) => handleChange('description', e.target.value)}
-                  placeholder="Product description..."
+                  placeholder="Card effect, text, condition notes, or product description..."
                   rows={4}
                 />
               </div>
             </CardContent>
           </Card>
 
-          {/* Image */}
+          {/* Image Upload */}
           <Card>
             <CardHeader>
               <CardTitle>Product Image</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {formData.image_url ? (
-                  <div className="relative w-full max-w-md">
-                    <img
-                      src={formData.image_url}
-                      alt={formData.name}
-                      className="w-full h-48 object-contain rounded-lg border bg-muted"
-                    />
-                    <Button
-                      type="button"
-                      variant="destructive"
-                      size="icon"
-                      className="absolute -top-2 -right-2"
-                      onClick={() => handleChange('image_url', '')}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed rounded-lg p-8 text-center">
-                    <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                    <div className="space-y-2">
-                      <Input
-                        id="image_url"
-                        type="url"
-                        value={formData.image_url || ''}
-                        onChange={(e) => handleChange('image_url', e.target.value)}
-                        placeholder="Enter image URL"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Or enter a URL to an image hosted elsewhere
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <ImageUpload
+                label="Card / Product Photo"
+                description="Upload high-res card scans directly to Supabase storage or paste an external URL"
+                value={formData.image_url || ''}
+                onChange={(url) => handleChange('image_url', url)}
+              />
             </CardContent>
           </Card>
         </div>
@@ -266,19 +403,19 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="set">Set</Label>
+                <Label htmlFor="set">Set Name / Code</Label>
                 <Input
                   id="set"
-                  value={formData.set}
+                  value={formData.set || ''}
                   onChange={(e) => handleChange('set', e.target.value)}
-                  placeholder="e.g. Legend of Blue Eyes"
+                  placeholder="e.g. Legend of Blue Eyes (LOB-001)"
                 />
               </div>
 
               <div className="space-y-2">
                 <Label>Rarity</Label>
                 <Select
-                  value={formData.rarity}
+                  value={formData.rarity || 'COMMON'}
                   onValueChange={(value) => handleChange('rarity', value)}
                 >
                   <SelectTrigger>
@@ -297,7 +434,7 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
               <div className="space-y-2">
                 <Label>Condition</Label>
                 <Select
-                  value={formData.condition}
+                  value={formData.condition || 'NEAR_MINT'}
                   onValueChange={(value) => handleChange('condition', value)}
                 >
                   <SelectTrigger>
@@ -326,7 +463,7 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
                   Price (JMD) <span className="text-destructive">*</span>
                 </Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-semibold">
                     $
                   </span>
                   <Input
@@ -353,9 +490,9 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
                   id="stock"
                   type="number"
                   min="0"
-                  value={formData.stock_quantity || ''}
+                  value={formData.stock_quantity ?? ''}
                   onChange={(e) => handleChange('stock_quantity', parseInt(e.target.value) || 0)}
-                  placeholder="0"
+                  placeholder="1"
                   className={cn(errors.stock_quantity && 'border-destructive')}
                 />
                 {errors.stock_quantity && (
@@ -373,9 +510,9 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="featured">Featured</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Show on homepage
+                  <Label htmlFor="featured">Featured Product</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Display in featured section on storefront
                   </p>
                 </div>
                 <Switch
@@ -387,9 +524,9 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
 
               <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label htmlFor="sealed">Sealed</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Sealed product
+                  <Label htmlFor="sealed">Sealed Product</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Booster box, tin, or structure deck
                   </p>
                 </div>
                 <Switch

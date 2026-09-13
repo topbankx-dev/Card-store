@@ -42,6 +42,7 @@ import {
   type TicketTier,
   type Game,
 } from '@/lib/validations/event'
+import { ImageUpload } from '@/components/admin/image-upload'
 import { TicketTiers } from './ticket-tiers'
 import { EventPreview } from './event-preview'
 import { RecurringOptions } from './recurring-options'
@@ -834,29 +835,13 @@ export function EventForm({ initialData, eventId, mode }: EventFormProps) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="image_url">Event Image URL</Label>
-                  <Input
-                    id="image_url"
-                    type="url"
-                    value={formData.image_url || ''}
-                    onChange={(e) => updateField('image_url', e.target.value || undefined)}
-                    placeholder="https://..."
-                  />
-                  {formData.image_url && (
-                    <div className="mt-2 rounded-lg overflow-hidden border">
-                      <img
-                        src={formData.image_url}
-                        alt="Event preview"
-                        className="w-full h-32 object-cover"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none'
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
+              <div className="space-y-4">
+                <ImageUpload
+                  label="Event Banner Image"
+                  description="Upload a banner photo for your tournament or paste an image URL"
+                  value={formData.image_url || ''}
+                  onChange={(url) => updateField('image_url', url || undefined)}
+                />
 
                 <div className="space-y-1.5">
                   <Label htmlFor="visibility">Visibility</Label>
