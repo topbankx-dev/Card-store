@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import bcrypt from 'bcryptjs'
 import { createServerClient } from '@/lib/supabase'
+import { checkRateLimit, rateLimitResponse, RATE_LIMIT_PRESETS } from '@/lib/rate-limit'
 
 export async function POST(request: NextRequest) {
   try {
+    const rl = checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH)
+    if (!rl.success) {
+      return rateLimitResponse(rl, 'Too many password change attempts. Please try again later.')
+    }
+
     const session = await auth()
 
     if (!session?.user?.id) {

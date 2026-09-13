@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 
 // Use service-role client for admin operations (bypasses RLS)
 const adminDb = createServerClient()
@@ -65,10 +66,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const body = await request.json()
-
-    // TODO: Add admin authentication check here
 
     const { data: event, error } = await adminDb
       .from('Event')

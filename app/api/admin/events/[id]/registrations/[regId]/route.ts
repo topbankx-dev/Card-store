@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 
 // PATCH /api/admin/events/[id]/registrations/[regId] - Update a registration
 export async function PATCH(
@@ -7,6 +8,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; regId: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id, regId } = await params
     const body = await request.json()
 
@@ -91,6 +97,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; regId: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id, regId } = await params
 
     const supabase = createServerClient()

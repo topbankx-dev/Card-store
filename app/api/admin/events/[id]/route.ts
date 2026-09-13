@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 import { EventSchema } from '@/lib/validations/event'
 import { generateSlug } from '@/lib/validations/event'
 
@@ -19,6 +20,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const supabase = createServerClient()
 
@@ -58,6 +64,11 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const body = await request.json()
 
@@ -185,6 +196,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const supabase = createServerClient()
 

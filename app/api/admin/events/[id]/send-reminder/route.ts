@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 
 // Email templates for reminders
 const EMAIL_TEMPLATES = {
@@ -33,6 +34,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const body = await request.json()
     const { type } = body as { type: ReminderType }
@@ -128,6 +134,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const supabase = createServerClient()
 

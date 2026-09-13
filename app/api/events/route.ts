@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 import { z } from 'zod'
 
 // Convert datetime-local format (YYYY-MM-DDTHH:mm) to ISO 8601 (YYYY-MM-DDTHH:mm:00Z)
@@ -101,13 +102,12 @@ export async function GET(request: NextRequest) {
 // POST /api/events - Create a new event (Admin only)
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
 
-    // TODO: Add admin authentication check here
-    // const session = await getServerSession()
-    // if (session?.user?.role !== 'ADMIN') {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    // }
+    const body = await request.json()
 
     const slug = body.slug || body.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
 

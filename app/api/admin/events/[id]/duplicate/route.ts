@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 import { generateSlug } from '@/lib/validations/event'
 
 // POST /api/admin/events/[id]/duplicate - Duplicate an event
@@ -8,6 +9,11 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const body = await request.json().catch(() => ({}))
     const supabase = createServerClient()

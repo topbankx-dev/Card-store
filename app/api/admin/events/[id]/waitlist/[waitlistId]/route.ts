@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 
 // DELETE /api/admin/events/[id]/waitlist/[waitlistId] - Remove from waitlist
 export async function DELETE(
@@ -7,6 +8,11 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string; waitlistId: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id, waitlistId } = await params
     const supabase = createServerClient()
 

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 import { EventSchema } from '@/lib/validations/event'
 import { generateSlug, generateRecurringDates } from '@/lib/validations/event'
 
 // GET /api/admin/events - List all events
 export async function GET(request: NextRequest) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const supabase = createServerClient()
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -84,6 +90,11 @@ function normalizeTimestamp(ts: string | null | undefined): string | null {
 // POST /api/admin/events - Create new event
 export async function POST(request: NextRequest) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const body = await request.json()
 
     // Validate with Zod

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
+import { checkRateLimit, rateLimitResponse, RATE_LIMIT_PRESETS } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 // Force Node.js runtime for server-side operations
@@ -27,11 +29,11 @@ const createOrderSchema = z.object({
 // GET /api/orders - Fetch orders (Admin only)
 export async function GET(request: NextRequest) {
   try {
-    // TODO: Add admin authentication check here
-    // const session = await getServerSession()
-    // if (session?.user?.role !== 'ADMIN') {
-    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    // }
+    // Enforce Admin Authentication
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -84,15 +86,16 @@ export async function GET(request: NextRequest) {
 // POST /api/orders - Create a new order
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit checkout requests to prevent automated bot orders
+    const rl = checkRateLimit(request, RATE_LIMIT_PRESETS.ACTION)
+    if (!rl.success) {
+      return rateLimitResponse(rl, 'Too many order requests. Please try again in a minute.')
+    }
+
     const body = await request.json()
 
     // Validate request body
     const validated = createOrderSchema.parse(body)
-
-    // Get current user from session (if authenticated)
-    // TODO: Add NextAuth session check
-    // const session = await getServerSession()
-    // const userId = session?.user?.id
 
     // Verify all products exist and have sufficient stock
     const productIds = validated.items.map(item => item.product_id)
@@ -135,8 +138,7 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Create the order (Supabase doesn't support Prisma-style nested transactions)
-    // Insert order first, then items, then update stock
+    // Create the order
     const { data: newOrder, error: orderError } = await adminDb
       .from('Order')
       .insert({
@@ -148,6 +150,7 @@ export async function POST(request: NextRequest) {
         customer_phone: validated.customer_phone,
         notes: validated.notes,
         status: 'PENDING',
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single()
@@ -163,8 +166,8 @@ export async function POST(request: NextRequest) {
     // Insert order items and update stock in parallel
     const insertItems = orderItems.map(item =>
       adminDb.from('OrderItem').insert({
-        orderId: newOrder.id,
-        productId: item.product_id,
+        order_id: newOrder.id,
+        product_id: item.product_id,
         quantity: item.quantity,
         price_at_purchase: item.price_at_purchase,
       })

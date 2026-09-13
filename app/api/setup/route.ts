@@ -1,15 +1,30 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { createServerClient, supabase } from '@/lib/supabase'
+import { checkRateLimit, rateLimitResponse, RATE_LIMIT_PRESETS } from '@/lib/rate-limit'
 
 // Use service-role client for setup operations (bypasses RLS for initial user creation)
 const adminDb = createServerClient()
 
 export async function POST(request: Request) {
   try {
+    // Apply strict rate limiting
+    const rl = checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH)
+    if (!rl.success) {
+      return rateLimitResponse(rl)
+    }
+
     // Check for secret key to prevent unauthorized access
     const authHeader = request.headers.get('authorization')
-    const secretKey = process.env.SETUP_SECRET || 'setup-secret-key'
+    const secretKey = process.env.SETUP_SECRET
+
+    // If SETUP_SECRET is not configured, disable this route completely for security
+    if (!secretKey || secretKey.trim().length < 8) {
+      return NextResponse.json(
+        { error: 'Forbidden', message: 'Setup endpoint is disabled. Configure SETUP_SECRET in environment.' },
+        { status: 403 }
+      )
+    }
 
     if (authHeader !== `Bearer ${secretKey}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

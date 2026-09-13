@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { createServerClient } from '@/lib/supabase'
+import { checkRateLimit, rateLimitResponse, RATE_LIMIT_PRESETS } from '@/lib/rate-limit'
 
 // Use service-role client for user creation (bypasses RLS)
 const adminDb = createServerClient()
 
 export async function POST(request: Request) {
   try {
+    // Rate limit registration requests to prevent bot account creation
+    const rl = checkRateLimit(request, RATE_LIMIT_PRESETS.AUTH)
+    if (!rl.success) {
+      return rateLimitResponse(rl, 'Too many registration attempts. Please try again in 15 minutes.')
+    }
+
     const body = await request.json()
-    const { name, email, password } = body
+    const name = body.name?.trim()
+    const email = body.email?.trim().toLowerCase()
+    const password = body.password
 
     // Validate input
     if (!name || !email || !password) {

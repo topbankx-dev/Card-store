@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
 
 // Use service-role client for admin operations (bypasses RLS)
 const adminDb = createServerClient()
@@ -67,10 +68,13 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
     const body = await request.json()
-
-    // TODO: Add admin authentication check here
 
     const { data: product, error } = await adminDb
       .from('Product')
@@ -87,6 +91,7 @@ export async function PATCH(
         description: body.description,
         is_featured: body.is_featured,
         is_sealed: body.is_sealed,
+        updated_at: new Date().toISOString(),
       })
       .eq('id', id)
       .select()
@@ -116,9 +121,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
 
-    // TODO: Add admin authentication check here
+    const { id } = await params
 
     const { error } = await adminDb
       .from('Product')

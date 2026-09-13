@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient, supabase } from '@/lib/supabase'
+import { requireAdmin } from '@/lib/admin/auth'
+import { checkRateLimit, rateLimitResponse, RATE_LIMIT_PRESETS } from '@/lib/rate-limit'
 import { z } from 'zod'
 
 // Use service-role client for write operations (bypasses RLS)
@@ -19,6 +21,11 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const adminAuth = await requireAdmin()
+    if (adminAuth instanceof NextResponse) {
+      return adminAuth
+    }
+
     const { id } = await params
 
     // Verify event exists
@@ -74,6 +81,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Rate limit event registrations
+    const rl = checkRateLimit(request, RATE_LIMIT_PRESETS.ACTION)
+    if (!rl.success) {
+      return rateLimitResponse(rl, 'Too many registration requests. Please wait a moment.')
+    }
+
     const { id } = await params
     const body = await request.json()
 
