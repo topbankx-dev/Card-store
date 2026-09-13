@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, Suspense } from 'react'
+import { useState, useEffect, Suspense, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -10,144 +10,14 @@ import { useCart } from '@/components/ui/use-toast'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartSidebar } from '@/components/cart-sidebar'
-import { Filter, Search, ShoppingCart, Heart, X } from 'lucide-react'
+import { Filter, Search, ShoppingCart, Heart, X, Loader2, ImageIcon, Sparkles } from 'lucide-react'
 import { formatPrice, cn } from '@/lib/utils'
+import { GAME_LABELS, RARITY_LABELS, CONDITION_LABELS, type Product } from '@/lib/admin/types'
 import Link from 'next/link'
 
-// Sample product data - in production, this comes from the database
-const sampleProducts = [
-  {
-    id: '1',
-    name: 'Blue-Eyes White Dragon',
-    slug: 'blue-eyes-white-dragon',
-    game: 'YGO',
-    set: 'Legend of Blue Eyes',
-    rarity: 'ULTRA_RARE',
-    condition: 'NEAR_MINT',
-    price: 4500,
-    stock_quantity: 3,
-    image_url: '/images/blue-eyes.jpg',
-  },
-  {
-    id: '2',
-    name: 'Charizard VMAX Rainbow',
-    slug: 'charizard-vmax-rainbow',
-    game: 'POKEMON',
-    set: 'Darkness Ablaze',
-    rarity: 'SECRET_RARE',
-    condition: 'NEAR_MINT',
-    price: 12500,
-    stock_quantity: 1,
-    image_url: '/images/charizard.jpg',
-  },
-  {
-    id: '3',
-    name: 'Black Lotus',
-    slug: 'black-lotus',
-    game: 'MTG',
-    set: 'Alpha',
-    rarity: 'MYTHIC',
-    condition: 'EXCELLENT',
-    price: 85000,
-    stock_quantity: 1,
-    image_url: '/images/black-lotus.jpg',
-  },
-  {
-    id: '4',
-    name: 'Luffy Gear 5 SR',
-    slug: 'luffy-gear-5-sr',
-    game: 'ONE_PIECE',
-    set: 'Paramount War',
-    rarity: 'SUPER_RARE',
-    condition: 'NEAR_MINT',
-    price: 3200,
-    stock_quantity: 5,
-    image_url: '/images/luffy.jpg',
-  },
-  {
-    id: '5',
-    name: 'Dark Magician Girl',
-    slug: 'dark-magician-girl',
-    game: 'YGO',
-    set: "Magician's Force",
-    rarity: 'SUPER_RARE',
-    condition: 'NEAR_MINT',
-    price: 5500,
-    stock_quantity: 2,
-    image_url: '/images/dark-magician-girl.jpg',
-  },
-  {
-    id: '6',
-    name: 'Pikachu V Union',
-    slug: 'pikachu-v-union',
-    game: 'POKEMON',
-    set: 'Brilliant Stars',
-    rarity: 'PROMO',
-    condition: 'NEAR_MINT',
-    price: 2800,
-    stock_quantity: 4,
-    image_url: '/images/pikachu.jpg',
-  },
-  {
-    id: '7',
-    name: 'Sora Revolver Dragon',
-    slug: 'sora-revolver-dragon',
-    game: 'YGO',
-    set: 'Dawn of Majesty',
-    rarity: 'SECRET_RARE',
-    condition: 'MINT',
-    price: 7800,
-    stock_quantity: 2,
-    image_url: '/images/sora.jpg',
-  },
-  {
-    id: '8',
-    name: ' Mewtwo VSTAR',
-    slug: 'mewtwo-vstar',
-    game: 'POKEMON',
-    set: 'Shining Fates',
-    rarity: 'ULTRA_RARE',
-    condition: 'NEAR_MINT',
-    price: 6500,
-    stock_quantity: 3,
-    image_url: '/images/mewtwo.jpg',
-  },
-  {
-    id: '9',
-    name: 'Time Walk',
-    slug: 'time-walk',
-    game: 'MTG',
-    set: 'Beta',
-    rarity: 'MYTHIC',
-    condition: 'GOOD',
-    price: 45000,
-    stock_quantity: 1,
-    image_url: '/images/timewalk.jpg',
-  },
-  {
-    id: '10',
-    name: 'Yamato VMAX',
-    slug: 'yamato-vmax',
-    game: 'ONE_PIECE',
-    set: 'Kingdoms of Intrigue',
-    rarity: 'SUPER_RARE',
-    condition: 'NEAR_MINT',
-    price: 4200,
-    stock_quantity: 6,
-    image_url: '/images/yamato.jpg',
-  },
-]
-
-const games = ['YGO', 'POKEMON', 'MTG', 'ONE_PIECE']
+const games = ['YGO', 'POKEMON', 'MTG', 'ONE_PIECE', 'NARUTO', 'DIGIMON', 'ACCESSORIES']
 const rarities = ['COMMON', 'UNCOMMON', 'RARE', 'SUPER_RARE', 'ULTRA_RARE', 'SECRET_RARE', 'MYTHIC', 'PROMO']
 const conditions = ['MINT', 'NEAR_MINT', 'EXCELLENT', 'GOOD', 'PLAYED']
-
-const gameLabels: Record<string, string> = {
-  YGO: 'Yu-Gi-Oh!',
-  POKEMON: 'Pokémon',
-  MTG: 'Magic: The Gathering',
-  ONE_PIECE: 'One Piece',
-}
 
 const rarityColors: Record<string, string> = {
   COMMON: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
@@ -160,11 +30,12 @@ const rarityColors: Record<string, string> = {
   PROMO: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
 }
 
-// Inner component that uses useSearchParams — must be wrapped in Suspense
 function ShopContent() {
   const searchParams = useSearchParams()
   const { addItem } = useCart()
 
+  const [products, setProducts] = useState<Product[]>([])
+  const [loading, setLoading] = useState(true)
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedGames, setSelectedGames] = useState<string[]>(
@@ -172,7 +43,27 @@ function ShopContent() {
   )
   const [selectedRarities, setSelectedRarities] = useState<string[]>([])
   const [selectedConditions, setSelectedConditions] = useState<string[]>([])
-  const [priceRange, setPriceRange] = useState<[number, number]>([0, 100000])
+  const [priceRange, setPriceRange] = useState<[number, number]>([0, 150000])
+
+  useEffect(() => {
+    async function loadProducts() {
+      setLoading(true)
+      try {
+        const res = await fetch('/api/products?limit=100')
+        if (res.ok) {
+          const json = await res.json()
+          if (json.products && Array.isArray(json.products)) {
+            setProducts(json.products)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch products:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadProducts()
+  }, [])
 
   const toggleFilter = (type: string, value: string) => {
     switch (type) {
@@ -198,34 +89,40 @@ function ShopContent() {
     setSelectedGames([])
     setSelectedRarities([])
     setSelectedConditions([])
-    setPriceRange([0, 100000])
+    setPriceRange([0, 150000])
     setSearchQuery('')
   }
 
   // Filter products
-  const filteredProducts = sampleProducts.filter(product => {
-    // Search query
-    if (searchQuery && !product.name.toLowerCase().includes(searchQuery.toLowerCase())) {
-      return false
-    }
-    // Game filter
-    if (selectedGames.length > 0 && !selectedGames.includes(product.game)) {
-      return false
-    }
-    // Rarity filter
-    if (selectedRarities.length > 0 && !selectedRarities.includes(product.rarity)) {
-      return false
-    }
-    // Condition filter
-    if (selectedConditions.length > 0 && !selectedConditions.includes(product.condition)) {
-      return false
-    }
-    // Price filter
-    if (product.price < priceRange[0] || product.price > priceRange[1]) {
-      return false
-    }
-    return true
-  })
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      // Search query
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const matchesName = product.name?.toLowerCase().includes(q)
+        const matchesSet = product.set?.toLowerCase().includes(q)
+        const matchesDesc = product.description?.toLowerCase().includes(q)
+        if (!matchesName && !matchesSet && !matchesDesc) return false
+      }
+      // Game filter
+      if (selectedGames.length > 0 && !selectedGames.includes(product.game)) {
+        return false
+      }
+      // Rarity filter
+      if (selectedRarities.length > 0 && !selectedRarities.includes(product.rarity)) {
+        return false
+      }
+      // Condition filter
+      if (selectedConditions.length > 0 && !selectedConditions.includes(product.condition)) {
+        return false
+      }
+      // Price filter
+      if (product.price < priceRange[0] || product.price > priceRange[1]) {
+        return false
+      }
+      return true
+    })
+  }, [products, searchQuery, selectedGames, selectedRarities, selectedConditions, priceRange])
 
   const activeFilterCount = selectedGames.length + selectedRarities.length + selectedConditions.length
 
@@ -239,9 +136,9 @@ function ShopContent() {
           {/* Page header */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
             <div>
-              <h1 className="text-3xl font-bold">Shop Cards</h1>
+              <h1 className="text-3xl font-bold">Shop Cards & Singles</h1>
               <p className="text-muted-foreground">
-                {filteredProducts.length} cards available
+                {loading ? 'Loading inventory...' : `${filteredProducts.length} items in stock`}
               </p>
             </div>
 
@@ -249,7 +146,7 @@ function ShopContent() {
               <div className="relative flex-1 md:w-80">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search cards..."
+                  placeholder="Search cards, sets, or effects..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -280,7 +177,7 @@ function ShopContent() {
                   options={games}
                   selected={selectedGames}
                   onToggle={(v) => toggleFilter('game', v)}
-                  labels={gameLabels}
+                  labels={GAME_LABELS}
                 />
 
                 <FilterSection
@@ -288,7 +185,7 @@ function ShopContent() {
                   options={rarities}
                   selected={selectedRarities}
                   onToggle={(v) => toggleFilter('rarity', v)}
-                  labels={rarityLabels}
+                  labels={RARITY_LABELS}
                 />
 
                 <FilterSection
@@ -296,7 +193,7 @@ function ShopContent() {
                   options={conditions}
                   selected={selectedConditions}
                   onToggle={(v) => toggleFilter('condition', v)}
-                  labels={conditionLabels}
+                  labels={CONDITION_LABELS}
                 />
 
                 <PriceFilter
@@ -324,13 +221,13 @@ function ShopContent() {
                     </Button>
                   </div>
 
-                  <div className="space-y-6">
+                  <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
                     <FilterSection
                       title="Game"
                       options={games}
                       selected={selectedGames}
                       onToggle={(v) => toggleFilter('game', v)}
-                      labels={gameLabels}
+                      labels={GAME_LABELS}
                     />
 
                     <FilterSection
@@ -338,7 +235,7 @@ function ShopContent() {
                       options={rarities}
                       selected={selectedRarities}
                       onToggle={(v) => toggleFilter('rarity', v)}
-                      labels={rarityLabels}
+                      labels={RARITY_LABELS}
                     />
 
                     <FilterSection
@@ -346,7 +243,7 @@ function ShopContent() {
                       options={conditions}
                       selected={selectedConditions}
                       onToggle={(v) => toggleFilter('condition', v)}
-                      labels={conditionLabels}
+                      labels={CONDITION_LABELS}
                     />
 
                     <PriceFilter
@@ -369,11 +266,15 @@ function ShopContent() {
 
             {/* Product grid */}
             <div className="flex-1">
-              {filteredProducts.length === 0 ? (
-                <div className="text-center py-12">
-                  <p className="text-lg text-muted-foreground mb-4">
-                    No cards found matching your filters
-                  </p>
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-24 space-y-4">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                  <p className="text-muted-foreground text-sm">Loading card inventory...</p>
+                </div>
+              ) : filteredProducts.length === 0 ? (
+                <div className="text-center py-16 border rounded-lg bg-card">
+                  <p className="text-lg font-semibold mb-2">No cards found matching your filters</p>
+                  <p className="text-sm text-muted-foreground mb-4">Try clearing filters or search for another card</p>
                   <Button variant="outline" onClick={clearFilters}>
                     Clear Filters
                   </Button>
@@ -390,7 +291,7 @@ function ShopContent() {
                           id: product.id,
                           name: product.name,
                           slug: product.slug,
-                          image_url: product.image_url,
+                          image_url: product.image_url || null,
                           price: product.price,
                           game: product.game,
                           rarity: product.rarity,
@@ -410,19 +311,17 @@ function ShopContent() {
   )
 }
 
-// Exported page wraps ShopContent in Suspense — required by Next.js when using useSearchParams()
 export default function ShopPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-muted-foreground">Loading shop...</div>
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     }>
       <ShopContent />
     </Suspense>
   )
 }
-
 
 function FilterSection({
   title,
@@ -442,16 +341,14 @@ function FilterSection({
       <h3 className="font-semibold mb-3">{title}</h3>
       <div className="space-y-2">
         {options.map((option) => (
-          <label key={option} className="flex items-center gap-2 cursor-pointer">
+          <label key={option} className="flex items-center gap-2 cursor-pointer text-sm hover:text-primary transition-colors">
             <input
               type="checkbox"
               checked={selected.includes(option)}
               onChange={() => onToggle(option)}
               className="rounded border-input bg-background text-primary focus:ring-primary"
             />
-            <span className="text-sm">
-              {labels[option] || option.replace('_', ' ')}
-            </span>
+            <span>{labels[option] || option.replace('_', ' ')}</span>
           </label>
         ))}
       </div>
@@ -459,7 +356,6 @@ function FilterSection({
   )
 }
 
-// Price Filter Component
 function PriceFilter({
   range,
   onChange,
@@ -469,7 +365,7 @@ function PriceFilter({
 }) {
   return (
     <div>
-      <h3 className="font-semibold mb-3">Price Range</h3>
+      <h3 className="font-semibold mb-3">Price Range (JMD)</h3>
       <div className="space-y-2">
         <Input
           type="number"
@@ -481,103 +377,99 @@ function PriceFilter({
           type="number"
           placeholder="Max"
           value={range[1] || ''}
-          onChange={(e) => onChange([range[0], parseInt(e.target.value) || 100000])}
+          onChange={(e) => onChange([range[0], parseInt(e.target.value) || 150000])}
         />
       </div>
     </div>
   )
 }
 
-// Product Card Component
 function ProductCard({
   product,
   onAddToCart,
 }: {
-  product: typeof sampleProducts[0]
+  product: Product
   onAddToCart: () => void
 }) {
-  const isOutOfStock = product.stock_quantity === 0
+  const isOutOfStock = (product.stock_quantity ?? 0) <= 0
+  const [imgError, setImgError] = useState(false)
 
   return (
     <Card className={cn(
-      "group overflow-hidden hover:border-primary/50 transition-all",
+      "group overflow-hidden hover:border-primary/50 transition-all flex flex-col justify-between bg-card hover:shadow-lg",
       isOutOfStock && "opacity-60"
     )}>
-      <div className="relative aspect-[3/4] bg-gradient-to-br from-purple-900/20 to-blue-900/20">
-        {/* Placeholder */}
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="w-24 h-36 rounded-lg bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-xs text-muted-foreground text-center p-2">
-            {product.name}
+      <div className="relative aspect-[3/4] bg-muted/30 overflow-hidden flex items-center justify-center p-3">
+        {product.image_url && !imgError ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+            onError={() => setImgError(true)}
+            loading="lazy"
+          />
+        ) : (
+          <div className="w-full h-full rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 flex flex-col items-center justify-center text-center p-4">
+            <ImageIcon className="w-10 h-10 text-muted-foreground/40 mb-2" />
+            <span className="font-semibold text-xs line-clamp-2">{product.name}</span>
+            <span className="text-[10px] text-muted-foreground mt-1">{GAME_LABELS[product.game] || product.game}</span>
           </div>
-        </div>
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute top-2 right-2 h-8 w-8 bg-background/50 backdrop-blur-sm hover:bg-background/80"
-        >
-          <Heart className="w-4 h-4" />
-        </Button>
+        )}
 
         <Badge
           variant="outline"
           className={cn(
-            'absolute top-2 left-2',
-            rarityColors[product.rarity]
+            'absolute top-2 left-2 text-[10px] font-semibold uppercase tracking-wider backdrop-blur-sm bg-background/80 shadow-sm',
+            rarityColors[product.rarity] || 'bg-background'
           )}
         >
-          {product.rarity.replace('_', ' ')}
+          {RARITY_LABELS[product.rarity] || product.rarity?.replace('_', ' ')}
         </Badge>
 
+        {product.is_featured && (
+          <Badge className="absolute top-2 right-2 bg-amber-500 text-black text-[10px] flex items-center gap-1 font-semibold">
+            <Sparkles className="w-3 h-3" /> Featured
+          </Badge>
+        )}
+
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-            <span className="text-sm font-medium text-destructive">Out of Stock</span>
+          <div className="absolute inset-0 bg-background/80 backdrop-blur-xs flex items-center justify-center">
+            <span className="text-xs font-bold uppercase tracking-wider text-destructive bg-destructive/10 px-3 py-1 rounded-full">
+              Out of Stock
+            </span>
           </div>
         )}
       </div>
 
-      <CardContent className="p-4">
-        <Link href={`/shop/${product.slug}`}>
-          <h3 className="font-semibold mb-1 line-clamp-1 group-hover:text-primary transition-colors">
-            {product.name}
-          </h3>
-        </Link>
-        <p className="text-xs text-muted-foreground mb-2">
-          {product.set} • {product.condition.replace('_', ' ')}
-        </p>
-        <div className="flex items-center justify-between">
-          <span className="text-lg font-bold text-primary">
+      <CardContent className="p-4 flex flex-col justify-between flex-1 border-t bg-card/50">
+        <div>
+          <Link href={`/shop/${product.slug || product.id}`}>
+            <h3 className="font-semibold text-sm mb-1 line-clamp-1 group-hover:text-primary transition-colors">
+              {product.name}
+            </h3>
+          </Link>
+          <p className="text-xs text-muted-foreground mb-3 line-clamp-1">
+            {product.set ? `${product.set} • ` : ''}
+            {CONDITION_LABELS[product.condition] || product.condition?.replace('_', ' ')}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-base font-bold text-primary">
             {formatPrice(product.price)}
           </span>
           <Button
             size="sm"
             onClick={onAddToCart}
             disabled={isOutOfStock}
+            className="h-8 text-xs font-medium"
           >
-            <ShoppingCart className="w-3 h-3 mr-1" />
+            <ShoppingCart className="w-3.5 h-3.5 mr-1" />
             Add
           </Button>
         </div>
       </CardContent>
     </Card>
   )
-}
-
-const rarityLabels: Record<string, string> = {
-  COMMON: 'Common',
-  UNCOMMON: 'Uncommon',
-  RARE: 'Rare',
-  SUPER_RARE: 'Super Rare',
-  ULTRA_RARE: 'Ultra Rare',
-  SECRET_RARE: 'Secret Rare',
-  MYTHIC: 'Mythic',
-  PROMO: 'Promo',
-}
-
-const conditionLabels: Record<string, string> = {
-  MINT: 'Mint',
-  NEAR_MINT: 'Near Mint',
-  EXCELLENT: 'Excellent',
-  GOOD: 'Good',
-  PLAYED: 'Played',
 }

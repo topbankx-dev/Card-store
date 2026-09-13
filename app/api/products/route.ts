@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const to = from + limit - 1
 
     // Build query
-    let query = supabase
+    let query = adminDb
       .from('Product')
       .select('*', { count: 'exact' })
       .order('is_featured', { ascending: false })
