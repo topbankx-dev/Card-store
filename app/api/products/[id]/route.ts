@@ -14,7 +14,7 @@ export async function GET(
     const { id } = await params
 
     // Try to find by ID first, then by slug
-    let { data: product, error } = await supabase
+    let { data: product, error } = await adminDb
       .from('Product')
       .select('*')
       .eq('id', id)
@@ -30,7 +30,7 @@ export async function GET(
 
     // If not found by ID, try slug
     if (!product) {
-      ;({ data: product, error } = await supabase
+      ;({ data: product, error } = await adminDb
         .from('Product')
         .select('*')
         .eq('slug', id)
