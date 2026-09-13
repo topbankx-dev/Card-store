@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
         total: count || 0,
         limit,
         offset,
+        totalPages: Math.ceil((count || 0) / limit),
         hasMore: (count || 0) > offset + limit
       }
     })
@@ -164,6 +165,9 @@ export async function POST(request: NextRequest) {
         (eventInsert as Record<string, unknown>)[field] = null
       }
     }
+
+    // Set updated_at timestamp
+    (eventInsert as Record<string, unknown>).updated_at = new Date().toISOString()
 
     // Insert event
     const { data: newEvent, error: eventError } = await supabase

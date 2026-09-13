@@ -97,11 +97,11 @@ export default function EventsPage() {
       if (!res.ok) throw new Error('Failed to fetch')
       const data = await res.json()
 
-      setEvents(data.data)
+      setEvents(Array.isArray(data.data) ? data.data : [])
       setPagination(prev => ({
         ...prev,
-        total: data.pagination.total,
-        totalPages: data.pagination.totalPages,
+        total: data.pagination?.total || 0,
+        totalPages: data.pagination?.totalPages || Math.ceil((data.pagination?.total || 0) / pagination.limit) || 1,
       }))
     } catch (error) {
       toast.error('Failed to load events')
