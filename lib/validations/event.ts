@@ -130,7 +130,7 @@ export const EventSchema = z.object({
   entry_fee: z.number().min(0, 'Entry fee must be 0 or greater').default(0),
   max_capacity: z.number().int().min(1, 'At least 1 spot required').max(1000),
   waitlist_enabled: z.boolean().default(false),
-  waitlist_max: z.number().int().min(1).optional().nullable(),
+  waitlist_max: z.number().int().min(0).optional().nullable(),
 
   // TCG-specific
   format: z.string().optional(),
@@ -150,7 +150,7 @@ export const EventSchema = z.object({
 
   // Recurring
   is_recurring: z.boolean().default(false),
-  recurring_pattern: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
+  recurring_pattern: z.enum(['DAILY', 'WEEKLY', 'BIWEEKLY', 'MONTHLY']).optional(),
   recurring_end_date: z.string().optional().nullable(),
   recurring_count: z.number().int().min(1).max(52).optional(),
 

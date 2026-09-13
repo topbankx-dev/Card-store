@@ -238,9 +238,14 @@ export function EventForm({ initialData, eventId, mode }: EventFormProps) {
         body: JSON.stringify(dataToSave),
       })
 
+      // Read body once
+      const data = await res.json()
+
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to save event')
+        const msg = data.details?.fieldErrors
+          ? 'Validation error: ' + Object.entries(data.details.fieldErrors).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
+          : data.error || 'Failed to save event'
+        throw new Error(msg)
       }
 
       // Clear draft on successful save
@@ -253,7 +258,6 @@ export function EventForm({ initialData, eventId, mode }: EventFormProps) {
         : 'Your changes have been saved')
 
       if (mode === 'create') {
-        const data = await res.json()
         router.push(`/admin/events/${data.data.id}`)
       }
     } catch (error) {
@@ -289,9 +293,14 @@ export function EventForm({ initialData, eventId, mode }: EventFormProps) {
         body: JSON.stringify(dataToSave),
       })
 
+      // Read body once
+      const data = await res.json()
+
       if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Failed to save event')
+        const msg = data.details?.fieldErrors
+          ? 'Validation error: ' + Object.entries(data.details.fieldErrors).map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`).join(' | ')
+          : data.error || 'Failed to save event'
+        throw new Error(msg)
       }
 
       // Clear draft on successful save
@@ -306,7 +315,6 @@ export function EventForm({ initialData, eventId, mode }: EventFormProps) {
       )
 
       if (mode === 'create') {
-        const data = await res.json()
         router.push(`/admin/events/${data.data.id}`)
       } else {
         router.push('/admin/events')
