@@ -1,4 +1,4 @@
-import { z } from 'zod'
+﻿import { z } from 'zod'
 
 // Game types
 export const GameSchema = z.enum(['MTG', 'YGO', 'POKEMON', 'ONE_PIECE', 'NARUTO', 'DIGIMON', 'ACCESSORIES'] as const)
@@ -166,7 +166,7 @@ export type EventFormData = z.infer<typeof EventSchema>
 // Recurring event generation
 export function generateRecurringDates(
   startDate: string,
-  pattern: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY',
+  pattern: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY',
   endDate?: string | null,
   count?: number
 ): string[] {
@@ -274,3 +274,4 @@ export function generateCalendarLinks(
 export function generateSurveyLink(eventSlug: string, eventId: string): string {
   return `/events/${eventSlug}/survey?event=${eventId}`
 }
+

@@ -1,4 +1,4 @@
-// Admin-specific TypeScript types
+﻿// Admin-specific TypeScript types
 
 export type Role = 'PLAYER' | 'ADMIN'
 
@@ -58,7 +58,7 @@ export type Game =
 
 export const GAME_LABELS: Record<Game, string> = {
   YGO: 'Yu-Gi-Oh!',
-  POKEMON: 'Pokémon',
+  POKEMON: 'PokÃ©mon',
   MTG: 'Magic: The Gathering',
   ONE_PIECE: 'One Piece',
   NARUTO: 'Naruto',
@@ -246,7 +246,7 @@ export interface Event {
 
   // Recurring
   is_recurring?: boolean
-  recurring_pattern?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+  recurring_pattern?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
   recurring_end_date?: string
   recurring_count?: number
 
@@ -330,3 +330,4 @@ export interface PaginatedResponse<T> {
   data: T[]
   pagination: PaginationInfo
 }
+

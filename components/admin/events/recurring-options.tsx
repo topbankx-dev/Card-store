@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
@@ -20,12 +20,12 @@ import { generateRecurringDates } from '@/lib/validations/event'
 interface RecurringOptionsProps {
   startDate: string
   isRecurring: boolean
-  pattern?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+  pattern?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
   endDate?: string | null
   count?: number
   onChange: (updates: {
     is_recurring: boolean
-    recurring_pattern?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
+    recurring_pattern?: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY'
     recurring_end_date?: string | null
     recurring_count?: number
   }) => void
@@ -112,7 +112,7 @@ export function RecurringOptions({
               <Label>Repeat Pattern</Label>
               <Select
                 value={pattern}
-                onValueChange={(value: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY') =>
+                onValueChange={(value: 'DAILY' | 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY') =>
                   onChange({ is_recurring: isRecurring, recurring_pattern: value })
                 }
                 disabled={!isRecurring}
@@ -199,3 +199,4 @@ export function RecurringOptions({
     </Card>
   )
 }
+
