@@ -137,6 +137,8 @@ export async function POST(
       }
     }
 
+    const now = new Date().toISOString()
+
     // Create registration and update event count
     const { data: newRegistration, error: regError } = await adminDb
       .from('EventRegistration')
@@ -146,6 +148,7 @@ export async function POST(
         customer_name: validated.guest_name,
         customer_email: validated.guest_email,
         payment_status: validated.payment_status,
+        updated_at: now,
       })
       .select()
       .single()
@@ -159,10 +162,13 @@ export async function POST(
     }
 
     // Update event registration count
+    const newCount = (event.current_registered || 0) + 1
     const { error: updateError } = await adminDb
       .from('Event')
       .update({
-        current_registered: event.current_registered + 1,
+        current_registered: newCount,
+        registration_count: newCount,
+        updated_at: now,
       })
       .eq('id', id)
 
