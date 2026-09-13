@@ -111,8 +111,10 @@ export async function POST(request: NextRequest) {
     const { data: product, error } = await supabase
       .from('Product')
       .insert({
+        id: crypto.randomUUID(),
         ...validated,
         slug: finalSlug,
+        created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .select()

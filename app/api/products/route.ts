@@ -126,6 +126,7 @@ export async function POST(request: NextRequest) {
     const { data: product, error } = await adminDb
       .from('Product')
       .insert({
+        id: crypto.randomUUID(),
         name: body.name,
         slug,
         game: body.game,
@@ -138,6 +139,8 @@ export async function POST(request: NextRequest) {
         description: body.description,
         is_featured: body.is_featured || false,
         is_sealed: body.is_sealed || false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       })
       .select()
       .single()
