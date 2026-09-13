@@ -1,12 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ProductTable } from '@/components/admin/products'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import {
   Select,
@@ -19,101 +18,11 @@ import {
   Plus,
   Filter,
   X,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react'
 import { GAME_LABELS, RARITY_LABELS, type Product } from '@/lib/admin/types'
-import { cn } from '@/lib/utils'
-
-// Sample data - in production, this comes from API
-const sampleProducts: Product[] = [
-  {
-    id: '1',
-    name: 'Blue-Eyes White Dragon',
-    slug: 'blue-eyes-white-dragon',
-    game: 'YGO',
-    set: 'Legend of Blue Eyes',
-    rarity: 'RARE',
-    condition: 'NEAR_MINT',
-    price: 4500,
-    stock_quantity: 3,
-    image_url: 'https://images.ygoprodeck.com/images/cards/89631139.jpg',
-    description: 'The ultimate dragon. This card is a must-have for any Blue-Eyes deck.',
-    is_featured: true,
-    is_sealed: false,
-    created_at: '2024-01-15T10:00:00Z',
-  },
-  {
-    id: '2',
-    name: 'Charizard VMAX Rainbow',
-    slug: 'charizard-vmax-rainbow',
-    game: 'POKEMON',
-    set: 'Darkness Ablaze',
-    rarity: 'SECRET_RARE',
-    condition: 'MINT',
-    price: 12500,
-    stock_quantity: 1,
-    image_url: 'https://images.pokemontcg.io/swsh3/20_hires.png',
-    is_featured: true,
-    is_sealed: false,
-    created_at: '2024-01-14T10:00:00Z',
-  },
-  {
-    id: '3',
-    name: 'Time Walk',
-    slug: 'time-walk',
-    game: 'MTG',
-    set: '30th Anniversary',
-    rarity: 'MYTHIC',
-    condition: 'PLAYED',
-    price: 45000,
-    stock_quantity: 1,
-    description: 'Take an extra turn after this one.',
-    is_featured: false,
-    is_sealed: false,
-    created_at: '2024-01-13T10:00:00Z',
-  },
-  {
-    id: '4',
-    name: 'Pikachu V Union',
-    slug: 'pikachu-v-union',
-    game: 'POKEMON',
-    set: 'Evolving Skies',
-    rarity: 'ULTRA_RARE',
-    condition: 'NEAR_MINT',
-    price: 2800,
-    stock_quantity: 0,
-    is_featured: false,
-    is_sealed: false,
-    created_at: '2024-01-12T10:00:00Z',
-  },
-  {
-    id: '5',
-    name: 'Luffy Gear 5',
-    slug: 'luffy-gear-5',
-    game: 'ONE_PIECE',
-    set: 'One Piece Carddass',
-    rarity: 'SUPER_RARE',
-    condition: 'MINT',
-    price: 3200,
-    stock_quantity: 5,
-    is_featured: false,
-    is_sealed: false,
-    created_at: '2024-01-11T10:00:00Z',
-  },
-  {
-    id: '6',
-    name: 'Dark Magician',
-    slug: 'dark-magician',
-    game: 'YGO',
-    set: 'Maze of Memories',
-    rarity: 'RARE',
-    condition: 'EXCELLENT',
-    price: 1200,
-    stock_quantity: 8,
-    is_featured: false,
-    is_sealed: false,
-    created_at: '2024-01-10T10:00:00Z',
-  },
-]
+import { toast } from '@/components/ui/sonner'
 
 export default function ProductsPage() {
   const router = useRouter()
@@ -127,48 +36,96 @@ export default function ProductsPage() {
   const [rarityFilter, setRarityFilter] = useState<string>(searchParams.get('rarity') || 'all')
   const [stockFilter, setStockFilter] = useState<string>(searchParams.get('stock') || 'all')
 
-  useEffect(() => {
-    // Simulate API fetch
-    const fetchProducts = async () => {
-      try {
-        // In production, fetch from /api/admin/products with filters
-        await new Promise(resolve => setTimeout(resolve, 500))
-        setProducts(sampleProducts)
-      } catch (error) {
-        console.error('Failed to fetch products:', error)
-      } finally {
-        setLoading(false)
+  const fetchProducts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      if (gameFilter !== 'all') params.set('game', gameFilter)
+      if (rarityFilter !== 'all') params.set('rarity', rarityFilter)
+      if (stockFilter !== 'all') params.set('stock', stockFilter)
+      params.set('limit', '100')
+
+      const res = await fetch(`/api/admin/products?${params}`)
+      if (!res.ok) {
+        throw new Error('Failed to fetch products')
       }
+      const json = await res.json()
+      setProducts(json.data || [])
+    } catch (error) {
+      console.error('Failed to fetch products:', error)
+      toast.error('Failed to load products from database')
+    } finally {
+      setLoading(false)
     }
+  }, [gameFilter, rarityFilter, stockFilter])
+
+  useEffect(() => {
     fetchProducts()
-  }, [])
+  }, [fetchProducts])
 
-  // Apply filters
-  const filteredProducts = products.filter((product) => {
-    if (gameFilter !== 'all' && product.game !== gameFilter) return false
-    if (rarityFilter !== 'all' && product.rarity !== rarityFilter) return false
-    if (stockFilter === 'low' && product.stock_quantity >= 5) return false
-    if (stockFilter === 'out' && product.stock_quantity > 0) return false
-    if (stockFilter === 'in' && product.stock_quantity === 0) return false
-    return true
-  })
-
-  const handleDelete = (id: string) => {
-    setProducts(products.filter((p) => p.id !== id))
-    // In production, call DELETE /api/admin/products/[id]
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) {
+        throw new Error('Failed to delete product')
+      }
+      toast.success('Product deleted successfully')
+      setProducts((prev) => prev.filter((p) => p.id !== id))
+    } catch (error) {
+      console.error('Error deleting product:', error)
+      toast.error('Failed to delete product')
+    }
   }
 
-  const handleBulkDelete = (ids: string[]) => {
-    setProducts(products.filter((p) => !ids.includes(p.id)))
-    setSelectedIds([])
-    // In production, call DELETE /api/admin/products with ids param
+  const handleBulkDelete = async (ids: string[]) => {
+    try {
+      await Promise.all(
+        ids.map((id) =>
+          fetch(`/api/admin/products/${id}`, {
+            method: 'DELETE',
+          })
+        )
+      )
+      toast.success(`Deleted ${ids.length} products`)
+      setSelectedIds([])
+      fetchProducts()
+    } catch (error) {
+      console.error('Error deleting products:', error)
+      toast.error('Failed to delete some products')
+    }
   }
 
-  const handleToggleFeatured = (id: string) => {
-    setProducts(products.map((p) =>
-      p.id === id ? { ...p, is_featured: !p.is_featured } : p
-    ))
-    // In production, call PUT /api/admin/products/[id]
+  const handleToggleFeatured = async (id: string) => {
+    const product = products.find((p) => p.id === id)
+    if (!product) return
+
+    const newFeatured = !product.is_featured
+    // Optimistic update
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, is_featured: newFeatured } : p))
+    )
+
+    try {
+      const res = await fetch(`/api/admin/products/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_featured: newFeatured }),
+      })
+
+      if (!res.ok) {
+        throw new Error('Failed to update featured status')
+      }
+      toast.success(newFeatured ? 'Product marked as featured' : 'Product removed from featured')
+    } catch (error) {
+      console.error('Error toggling featured:', error)
+      toast.error('Failed to update featured status')
+      // Revert
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, is_featured: !newFeatured } : p))
+      )
+    }
   }
 
   const clearFilters = () => {
@@ -186,15 +143,20 @@ export default function ProductsPage() {
         <div>
           <h1 className="text-3xl font-bold">Products</h1>
           <p className="text-muted-foreground">
-            Manage your product inventory ({filteredProducts.length} products)
+            Manage your product inventory ({products.length} products)
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/products/new">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Product
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="icon" onClick={() => fetchProducts()} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button asChild>
+            <Link href="/admin/products/new">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Product
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -311,7 +273,7 @@ export default function ProductsPage() {
         </Card>
       ) : (
         <ProductTable
-          products={filteredProducts}
+          products={products}
           onDelete={handleDelete}
           onBulkDelete={handleBulkDelete}
           onToggleFeatured={handleToggleFeatured}

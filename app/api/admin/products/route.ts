@@ -30,11 +30,12 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '20')
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100)
     const game = searchParams.get('game')
     const search = searchParams.get('search')
     const rarity = searchParams.get('rarity')
     const condition = searchParams.get('condition')
+    const stock = searchParams.get('stock')
 
     const from = (page - 1) * limit
     const to = from + limit - 1
@@ -46,14 +47,21 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false })
       .range(from, to)
 
-    if (game && game !== 'ALL') {
+    if (game && game !== 'ALL' && game !== 'all') {
       query = query.eq('game', game)
     }
-    if (rarity && rarity !== 'ALL') {
+    if (rarity && rarity !== 'ALL' && rarity !== 'all') {
       query = query.eq('rarity', rarity)
     }
-    if (condition && condition !== 'ALL') {
+    if (condition && condition !== 'ALL' && condition !== 'all') {
       query = query.eq('condition', condition)
+    }
+    if (stock === 'in') {
+      query = query.gt('stock_quantity', 0)
+    } else if (stock === 'low') {
+      query = query.gt('stock_quantity', 0).lte('stock_quantity', 5)
+    } else if (stock === 'out') {
+      query = query.eq('stock_quantity', 0)
     }
     if (search) {
       query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,set.ilike.%${search}%`)
