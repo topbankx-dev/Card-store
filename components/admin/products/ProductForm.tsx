@@ -17,7 +17,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { GAME_LABELS, RARITY_LABELS, CONDITION_LABELS, type Product, type Rarity } from '@/lib/admin/types'
 import { cn } from '@/lib/utils'
-import { Loader2, Sparkles, Search, Check, Wand2 } from 'lucide-react'
+import { Loader2, Sparkles, Search, Check, Wand2, X } from 'lucide-react'
 import { ImageUpload } from '@/components/admin/image-upload'
 import { toast } from '@/components/ui/sonner'
 
@@ -35,6 +35,7 @@ interface TcgSearchResult {
   price?: number
   image_url?: string
   description?: string
+  variant_label?: string
 }
 
 export function ProductForm({ product, onSubmit, isEditing = false }: ProductFormProps) {
@@ -275,44 +276,73 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
 
           {/* Live Card Results Carousel / List */}
           {tcgResults.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-              {tcgResults.map((card, idx) => (
-                <div
-                  key={idx}
-                  onClick={() => applyTcgCard(card)}
-                  className="border rounded-lg p-2.5 bg-background hover:border-primary cursor-pointer transition-all hover:shadow-md flex flex-col justify-between text-left group"
+            <div className="space-y-2 pt-2">
+              <div className="flex items-center justify-between pb-1 border-b">
+                <span className="text-xs font-semibold text-primary">
+                  Found {tcgResults.length} Printings & Variants
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTcgResults([])}
+                  className="h-6 text-xs text-muted-foreground hover:text-foreground px-2"
                 >
-                  <div>
-                    {card.image_url && (
-                      <div className="w-full h-32 relative mb-2 bg-muted rounded overflow-hidden flex items-center justify-center">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={card.image_url}
-                          alt={card.name}
-                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
-                        />
-                      </div>
-                    )}
-                    <p className="font-semibold text-xs line-clamp-1">{card.name}</p>
-                    {card.set && (
-                      <p className="text-[11px] text-muted-foreground line-clamp-1">{card.set}</p>
-                    )}
-                    {card.rarity && (
-                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">
-                        {card.rarity}
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full mt-2 text-xs h-7 group-hover:bg-primary group-hover:text-primary-foreground"
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  Dismiss
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-[460px] overflow-y-auto p-1">
+                {tcgResults.map((card, idx) => (
+                  <div
+                    key={idx}
+                    onClick={() => applyTcgCard(card)}
+                    className="border rounded-xl p-2.5 bg-background hover:border-primary cursor-pointer transition-all hover:shadow-md flex flex-col justify-between text-left group relative"
                   >
-                    <Check className="w-3 h-3 mr-1" /> Use Card
-                  </Button>
-                </div>
-              ))}
+                    <div>
+                      {card.image_url && (
+                        <div className="w-full h-36 relative mb-2 bg-muted rounded-lg overflow-hidden flex items-center justify-center border border-border/40">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={card.image_url}
+                            alt={card.name}
+                            className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                      )}
+                      <p className="font-bold text-xs line-clamp-1 text-foreground">{card.name}</p>
+
+                      {card.variant_label ? (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold mt-1 inline-block line-clamp-1">
+                          {card.variant_label}
+                        </span>
+                      ) : (
+                        card.rarity && (
+                          <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">
+                            {card.rarity.replace(/_/g, ' ')}
+                          </span>
+                        )
+                      )}
+
+                      {card.set && (
+                        <p className="text-[10px] text-muted-foreground line-clamp-1 mt-1 font-mono">
+                          {card.set}
+                        </p>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-2 text-xs h-7 group-hover:bg-primary group-hover:text-primary-foreground font-semibold"
+                    >
+                      <Check className="w-3 h-3 mr-1" /> Use Variant
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardContent>

@@ -11,6 +11,24 @@ export interface TcgCardResult {
   price?: number
   image_url?: string
   description?: string
+  variant_label?: string
+}
+
+const normalizeRarityString = (rarityStr?: string): string => {
+  if (!rarityStr) return 'COMMON'
+  const upper = rarityStr.toUpperCase()
+  if (upper.includes('SECRET') || upper.includes('STARLIGHT') || upper.includes('GHOST') || upper.includes('HYPER') || upper.includes('SPECIAL ART') || upper.includes('SPECIAL ILLUSTRATION')) {
+    return 'SECRET_RARE'
+  }
+  if (upper.includes('MYTHIC')) return 'MYTHIC'
+  if (upper.includes('ULTRA') || upper.includes('ULTIMATE') || upper.includes('COLLECTOR') || upper.includes('ILLUSTRATION') || upper.includes('DOUBLE RARE') || upper.includes('VMAX') || upper.includes('VSTAR')) {
+    return 'ULTRA_RARE'
+  }
+  if (upper.includes('SUPER')) return 'SUPER_RARE'
+  if (upper.includes('PROMO') || upper.includes('SPECIAL')) return 'PROMO'
+  if (upper.includes('UNCOMMON')) return 'UNCOMMON'
+  if (upper.includes('RARE') || upper.includes('HOLO')) return 'RARE'
+  return 'COMMON'
 }
 
 export async function GET(request: NextRequest) {
@@ -30,26 +48,67 @@ export async function GET(request: NextRequest) {
 
     const results: TcgCardResult[] = []
 
-    // Yu-Gi-Oh via YGOPRODeck API
+    // 1. Yu-Gi-Oh via YGOPRODeck API (all set printings & alternate art)
     if (game === 'YGO') {
       try {
         const url = `https://db.ygoprodeck.com/api/v7/cardinfo.php?fname=${encodeURIComponent(query)}`
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+        const res = await fetch(url, { headers: { Accept: 'application/json' } })
+
         if (res.ok) {
           const json = await res.json()
-          const cards = json.data?.slice(0, 8) || []
+          const cards = json.data || []
+
           for (const card of cards) {
-            const firstSet = card.card_sets?.[0]
-            const price = parseFloat(card.card_prices?.[0]?.tcgplayer_price || '0')
-            results.push({
-              name: card.name,
-              game: 'YGO',
-              set: firstSet ? `${firstSet.set_name} (${firstSet.set_code})` : undefined,
-              rarity: firstSet?.set_rarity?.toUpperCase().replace(/\s+/g, '_') || 'COMMON',
-              price: price > 0 ? price : 1.00,
-              image_url: card.card_images?.[0]?.image_url,
-              description: card.desc,
-            })
+            const cardSets = card.card_sets || []
+            const cardImages = card.card_images || []
+            const primaryImage = cardImages[0]?.image_url
+
+            if (cardSets.length > 0) {
+              // Iterate through all distinct set releases / printings of this card
+              for (const set of cardSets) {
+                const setPrice = parseFloat(set.set_price || '0')
+                const overallPrice = parseFloat(card.card_prices?.[0]?.tcgplayer_price || '0')
+                const price = setPrice > 0 ? setPrice : overallPrice > 0 ? overallPrice : 1.00
+
+                results.push({
+                  name: card.name,
+                  game: 'YGO',
+                  set: `${set.set_name} (${set.set_code})`,
+                  rarity: normalizeRarityString(set.set_rarity),
+                  price,
+                  image_url: primaryImage,
+                  description: card.desc,
+                  variant_label: `${set.set_code} • ${set.set_rarity}`,
+                })
+              }
+            } else {
+              // Single entry if no set printings found
+              results.push({
+                name: card.name,
+                game: 'YGO',
+                set: undefined,
+                rarity: 'COMMON',
+                price: parseFloat(card.card_prices?.[0]?.tcgplayer_price || '1.00'),
+                image_url: primaryImage,
+                description: card.desc,
+              })
+            }
+
+            // Include alternate artwork variants if present
+            if (cardImages.length > 1) {
+              for (let i = 1; i < cardImages.length; i++) {
+                results.push({
+                  name: `${card.name} (Alt Art #${i + 1})`,
+                  game: 'YGO',
+                  set: 'Alternate Artwork Edition',
+                  rarity: 'ULTRA_RARE',
+                  price: 5.00,
+                  image_url: cardImages[i].image_url,
+                  description: card.desc,
+                  variant_label: `Alt Art #${i + 1}`,
+                })
+              }
+            }
           }
         }
       } catch (err) {
@@ -57,24 +116,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // MTG via Scryfall API
+    // 2. Magic: The Gathering via Scryfall API (all distinct printings, promos & showcase arts)
     if (game === 'MTG') {
       try {
-        const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=cards`
-        const res = await fetch(url, { headers: { 'User-Agent': 'CardStoreMVP/1.0', 'Accept': 'application/json' } })
+        const url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&unique=prints&order=released`
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'CardStoreMVP/1.0', Accept: 'application/json' },
+        })
+
         if (res.ok) {
           const json = await res.json()
-          const cards = json.data?.slice(0, 8) || []
+          const cards = json.data?.slice(0, 36) || []
+
           for (const card of cards) {
             const price = parseFloat(card.prices?.usd || card.prices?.usd_foil || '0')
+            const image =
+              card.image_uris?.normal ||
+              card.image_uris?.large ||
+              card.card_faces?.[0]?.image_uris?.normal
+
             results.push({
               name: card.name,
               game: 'MTG',
-              set: `${card.set_name} (${card.collector_number || ''})`,
-              rarity: card.rarity?.toUpperCase() || 'COMMON',
+              set: `${card.set_name} (${card.set?.toUpperCase()} #${card.collector_number || ''})`,
+              rarity: normalizeRarityString(card.rarity),
               price: price > 0 ? price : 1.00,
-              image_url: card.image_uris?.normal || card.image_uris?.png,
+              image_url: image,
               description: card.oracle_text || card.type_line,
+              variant_label: `${card.set?.toUpperCase()} #${card.collector_number || ''} • ${card.rarity}`,
             })
           }
         }
@@ -83,24 +152,34 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Pokémon TCG API
+    // 3. Pokémon TCG API (all set printings, secret rares, illustration rares)
     if (game === 'POKEMON') {
       try {
-        const url = `https://api.pokemontcg.io/v2/cards?q=name:"*${encodeURIComponent(query)}*"&pageSize=8`
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+        const url = `https://api.pokemontcg.io/v2/cards?q=name:*${encodeURIComponent(query)}*&pageSize=36&orderBy=-set.releaseDate`
+        const res = await fetch(url, { headers: { Accept: 'application/json' } })
+
         if (res.ok) {
           const json = await res.json()
           const cards = json.data || []
+
           for (const card of cards) {
-            const price = card.tcgplayer?.prices?.holofoil?.market || card.tcgplayer?.prices?.normal?.market || card.cardmarket?.prices?.averageSellPrice || 1.00
+            const price =
+              card.tcgplayer?.prices?.holofoil?.market ||
+              card.tcgplayer?.prices?.normal?.market ||
+              card.cardmarket?.prices?.averageSellPrice ||
+              1.00
+
             results.push({
               name: card.name,
               game: 'POKEMON',
-              set: card.set?.name ? `${card.set.name} (${card.number}/${card.set.total})` : undefined,
-              rarity: card.rarity?.toUpperCase().replace(/\s+/g, '_') || 'RARE',
+              set: card.set?.name
+                ? `${card.set.name} (${card.number}/${card.set.total || '?'})`
+                : undefined,
+              rarity: normalizeRarityString(card.rarity),
               price: parseFloat(price.toString()) || 1.00,
               image_url: card.images?.large || card.images?.small,
               description: card.flavorText || card.subtypes?.join(', '),
+              variant_label: `${card.set?.name || 'Promo'} #${card.number} • ${card.rarity || 'Card'}`,
             })
           }
         }
@@ -109,9 +188,10 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ results })
+    return NextResponse.json({ results: results.slice(0, 40) })
   } catch (error) {
     console.error('Error in GET /api/admin/tcg-lookup:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
