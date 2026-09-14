@@ -99,17 +99,53 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
     }
   }
 
-  // TCG API Lookup
+  // Live Instant Typeahead Search (debounced 250ms as user types)
+  useEffect(() => {
+    const trimmed = tcgQuery.trim()
+    if (trimmed.length < 2) {
+      setTcgResults([])
+      setTcgSearching(false)
+      return
+    }
+
+    const controller = new AbortController()
+
+    const timeout = setTimeout(async () => {
+      setTcgSearching(true)
+      try {
+        const res = await fetch(
+          `/api/admin/tcg-lookup?q=${encodeURIComponent(trimmed)}&game=${formData.game || 'YGO'}`,
+          { signal: controller.signal }
+        )
+        if (!res.ok) throw new Error('Search failed')
+        const data = await res.json()
+        setTcgResults(data.results || [])
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.error('Typeahead search error:', err)
+        }
+      } finally {
+        setTcgSearching(false)
+      }
+    }, 250)
+
+    return () => {
+      clearTimeout(timeout)
+      controller.abort()
+    }
+  }, [tcgQuery, formData.game])
+
+  // Manual immediate TCG API Lookup (e.g. on Enter key or button click)
   const handleTcgSearch = async () => {
-    if (!tcgQuery.trim()) {
+    const trimmed = tcgQuery.trim()
+    if (!trimmed) {
       toast.error('Please enter a card name or set code')
       return
     }
 
     setTcgSearching(true)
-    setTcgResults([])
     try {
-      const res = await fetch(`/api/admin/tcg-lookup?q=${encodeURIComponent(tcgQuery)}&game=${formData.game || 'YGO'}`)
+      const res = await fetch(`/api/admin/tcg-lookup?q=${encodeURIComponent(trimmed)}&game=${formData.game || 'YGO'}`)
       if (!res.ok) throw new Error('Search failed')
       const data = await res.json()
       setTcgResults(data.results || [])
@@ -248,17 +284,36 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
-            <Input
-              placeholder="e.g. Ash Blossom, Blue-Eyes, Black Lotus, Charizard ex..."
-              value={tcgQuery}
-              onChange={(e) => setTcgQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  handleTcgSearch()
-                }
-              }}
-            />
+            <div className="relative flex-1">
+              <Input
+                placeholder="e.g. Ash Blossom, Blue-Eyes, Black Lotus, Charizard ex..."
+                value={tcgQuery}
+                onChange={(e) => setTcgQuery(e.target.value)}
+                className={cn('pr-8', tcgSearching && 'border-primary')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    handleTcgSearch()
+                  }
+                }}
+              />
+              {tcgSearching ? (
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                </div>
+              ) : tcgQuery ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTcgQuery('')
+                    setTcgResults([])
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : null}
+            </div>
             <Button
               type="button"
               onClick={handleTcgSearch}
