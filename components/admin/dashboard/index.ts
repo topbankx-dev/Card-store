@@ -1,3 +1,6 @@
 export { StatCard } from './StatCard'
 export { RevenueChart } from './RevenueChart'
 export { LowStockAlert } from './LowStockAlert'
+export { ActionQueue, type ActionQueueItem } from './ActionQueue'
+export { UpcomingTournamentsHub } from './UpcomingTournamentsHub'
+export { GameDistributionChart } from './GameDistributionChart'
