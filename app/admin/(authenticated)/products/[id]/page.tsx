@@ -2,63 +2,65 @@
 
 import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { ProductForm } from '@/components/admin/products'
 import { Card, CardContent } from '@/components/ui/card'
-import { Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Loader2, ArrowLeft, AlertCircle } from 'lucide-react'
 import type { Product } from '@/lib/admin/types'
-
-// Sample product for demonstration
-const sampleProduct: Product = {
-  id: '1',
-  name: 'Blue-Eyes White Dragon',
-  slug: 'blue-eyes-white-dragon',
-  game: 'YGO',
-  set: 'Legend of Blue Eyes',
-  rarity: 'RARE',
-  condition: 'NEAR_MINT',
-  price: 4500,
-  stock_quantity: 3,
-  image_url: 'https://images.ygoprodeck.com/images/cards/89631139.jpg',
-  description: 'The ultimate dragon. This card is a must-have for any Blue-Eyes deck.',
-  is_featured: true,
-  is_sealed: false,
-  created_at: '2024-01-15T10:00:00Z',
-}
 
 export default function EditProductPage() {
   const params = useParams()
-  const [product, setProduct] = useState<Partial<Product> | null>(null)
+  const productId = Array.isArray(params.id) ? params.id[0] : params.id
+  const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchProduct = async () => {
+      if (!productId) return
+      setLoading(true)
+      setError(null)
       try {
-        // In production, fetch from /api/admin/products/[id]
-        await new Promise(resolve => setTimeout(resolve, 500))
-        setProduct(sampleProduct)
-      } catch (error) {
-        console.error('Failed to fetch product:', error)
+        const res = await fetch(`/api/admin/products/${productId}`)
+        if (!res.ok) {
+          if (res.status === 404) {
+            throw new Error('Product not found in database')
+          }
+          throw new Error(`Failed to load product (${res.status})`)
+        }
+        const data = await res.json()
+        setProduct(data)
+      } catch (err: any) {
+        console.error('Failed to fetch product:', err)
+        setError(err.message || 'Error loading product')
       } finally {
         setLoading(false)
       }
     }
 
-    if (params.id) {
-      fetchProduct()
-    }
-  }, [params.id])
+    fetchProduct()
+  }, [productId])
 
   if (loading) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Edit Product</h1>
-          <p className="text-muted-foreground mt-1">Loading product...</p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/admin/products">
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold">Edit Product</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">Loading product data...</p>
+          </div>
         </div>
         <Card>
           <CardContent className="p-6">
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Fetching card details from Supabase...</p>
             </div>
           </CardContent>
         </Card>
@@ -66,26 +68,61 @@ export default function EditProductPage() {
     )
   }
 
-  if (!product) {
+  if (error || !product) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">Product Not Found</h1>
-          <p className="text-muted-foreground mt-1">
-            The product you are looking for does not exist.
-          </p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link href="/admin/products">
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold">Product Not Found</h1>
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {error || 'The requested product does not exist in inventory.'}
+            </p>
+          </div>
         </div>
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardContent className="p-6">
+            <div className="flex flex-col items-center justify-center py-12 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base">Card or Product Missing</h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                  This item may have been deleted or the link ID is invalid.
+                </p>
+              </div>
+              <Button asChild>
+                <Link href="/admin/products">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Return to Products
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Edit Product</h1>
-        <p className="text-muted-foreground mt-1">
-          Update product information
-        </p>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/admin/products">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+        </Button>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold">Edit Product</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Update pricing, condition, card art, and stock levels
+          </p>
+        </div>
       </div>
 
       <ProductForm product={product} isEditing />

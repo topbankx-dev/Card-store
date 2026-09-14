@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -61,6 +61,26 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
     is_featured: product?.is_featured || false,
     is_sealed: product?.is_sealed || false,
   })
+
+  // Synchronize formData when product loads or updates
+  useEffect(() => {
+    if (product) {
+      setFormData({
+        name: product.name || '',
+        slug: product.slug || '',
+        game: product.game || 'YGO',
+        set: product.set || '',
+        rarity: product.rarity || 'COMMON',
+        condition: product.condition || 'NEAR_MINT',
+        price: product.price || 0,
+        stock_quantity: product.stock_quantity ?? 1,
+        image_url: product.image_url || '',
+        description: product.description || '',
+        is_featured: product.is_featured || false,
+        is_sealed: product.is_sealed || false,
+      })
+    }
+  }, [product])
 
   const handleChange = (field: keyof Product, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -215,90 +235,88 @@ export function ProductForm({ product, onSubmit, isEditing = false }: ProductFor
       )}
 
       {/* TCG Auto-Fill Bar */}
-      {!isEditing && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Wand2 className="w-5 h-5 text-primary" />
-              TCG Card Auto-Fill (YGOPRODeck / Scryfall / Pokémon API)
-            </CardTitle>
-            <CardDescription>
-              Search by card name to automatically import the card image, rarity, set name, and description.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                placeholder="e.g. Ash Blossom, Blue-Eyes, Black Lotus, Charizard ex..."
-                value={tcgQuery}
-                onChange={(e) => setTcgQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    handleTcgSearch()
-                  }
-                }}
-              />
-              <Button
-                type="button"
-                onClick={handleTcgSearch}
-                disabled={tcgSearching}
-                className="shrink-0"
-              >
-                {tcgSearching ? (
-                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                ) : (
-                  <Search className="w-4 h-4 mr-2" />
-                )}
-                Search TCG API
-              </Button>
-            </div>
+      <Card className="border-primary/30 bg-primary/5">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Wand2 className="w-5 h-5 text-primary" />
+            TCG Card Auto-Fill (YGOPRODeck / Scryfall / Pokémon API)
+          </CardTitle>
+          <CardDescription>
+            Search by card name to automatically import or update the card image, rarity, set name, and description.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="e.g. Ash Blossom, Blue-Eyes, Black Lotus, Charizard ex..."
+              value={tcgQuery}
+              onChange={(e) => setTcgQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleTcgSearch()
+                }
+              }}
+            />
+            <Button
+              type="button"
+              onClick={handleTcgSearch}
+              disabled={tcgSearching}
+              className="shrink-0"
+            >
+              {tcgSearching ? (
+                <Loader2 className="w-4 h-4 animate-spin mr-2" />
+              ) : (
+                <Search className="w-4 h-4 mr-2" />
+              )}
+              Search TCG API
+            </Button>
+          </div>
 
-            {/* Live Card Results Carousel / List */}
-            {tcgResults.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                {tcgResults.map((card, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => applyTcgCard(card)}
-                    className="border rounded-lg p-2.5 bg-background hover:border-primary cursor-pointer transition-all hover:shadow-md flex flex-col justify-between text-left group"
-                  >
-                    <div>
-                      {card.image_url && (
-                        <div className="w-full h-32 relative mb-2 bg-muted rounded overflow-hidden flex items-center justify-center">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={card.image_url}
-                            alt={card.name}
-                            className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
-                          />
-                        </div>
-                      )}
-                      <p className="font-semibold text-xs line-clamp-1">{card.name}</p>
-                      {card.set && (
-                        <p className="text-[11px] text-muted-foreground line-clamp-1">{card.set}</p>
-                      )}
-                      {card.rarity && (
-                        <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">
-                          {card.rarity}
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="w-full mt-2 text-xs h-7 group-hover:bg-primary group-hover:text-primary-foreground"
-                    >
-                      <Check className="w-3 h-3 mr-1" /> Use Card
-                    </Button>
+          {/* Live Card Results Carousel / List */}
+          {tcgResults.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              {tcgResults.map((card, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => applyTcgCard(card)}
+                  className="border rounded-lg p-2.5 bg-background hover:border-primary cursor-pointer transition-all hover:shadow-md flex flex-col justify-between text-left group"
+                >
+                  <div>
+                    {card.image_url && (
+                      <div className="w-full h-32 relative mb-2 bg-muted rounded overflow-hidden flex items-center justify-center">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={card.image_url}
+                          alt={card.name}
+                          className="max-h-full max-w-full object-contain group-hover:scale-105 transition-transform"
+                        />
+                      </div>
+                    )}
+                    <p className="font-semibold text-xs line-clamp-1">{card.name}</p>
+                    {card.set && (
+                      <p className="text-[11px] text-muted-foreground line-clamp-1">{card.set}</p>
+                    )}
+                    {card.rarity && (
+                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground mt-1 inline-block">
+                        {card.rarity}
+                      </span>
+                    )}
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full mt-2 text-xs h-7 group-hover:bg-primary group-hover:text-primary-foreground"
+                  >
+                    <Check className="w-3 h-3 mr-1" /> Use Card
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content */}
